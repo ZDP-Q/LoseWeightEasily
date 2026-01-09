@@ -10,6 +10,7 @@ import sys
 from .bmr import calculate_bmr, calculate_tdee
 from .config import config
 from .database import DatabaseManager
+from .meal_planner import interactive_meal_planning
 from .query import initialize_system, interactive_query, query_food_calories
 from .search import FoodSearchEngine
 
@@ -103,6 +104,11 @@ def handle_bmr(args):
         print(f"❌ 计算出错: {e}")
 
 
+def handle_meal_plan(args):
+    """处理 meal-plan 命令"""
+    interactive_meal_planning()
+
+
 def main():
     """主入口函数"""
     parser = argparse.ArgumentParser(
@@ -140,13 +146,17 @@ def main():
     rebuild_parser.add_argument("--db", default=config.DB_PATH, help="数据库路径")
     rebuild_parser.set_defaults(func=handle_rebuild_index)
 
-    # --- 注册 bmr 命令 (新模块) ---
+    # --- 注册 bmr 命令 ---
     bmr_parser = subparsers.add_parser("bmr", help="计算基础代谢率 (BMR)")
     bmr_parser.add_argument("-w", "--weight", type=float, help="体重 (kg)")
     bmr_parser.add_argument("-H", "--height", type=float, help="身高 (cm)") # -h is used for help
     bmr_parser.add_argument("-a", "--age", type=int, help="年龄")
     bmr_parser.add_argument("-g", "--gender", choices=["male", "female"], help="性别 (male/female)")
     bmr_parser.set_defaults(func=handle_bmr)
+
+    # --- 注册 meal-plan 命令 ---
+    meal_plan_parser = subparsers.add_parser("meal-plan", help="生成一日三餐食谱")
+    meal_plan_parser.set_defaults(func=handle_meal_plan)
 
     args = parser.parse_args()
 

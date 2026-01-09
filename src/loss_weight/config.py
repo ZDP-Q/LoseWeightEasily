@@ -35,6 +35,11 @@ class Config:
     # 营养素编号 (USDA标准)
     ENERGY_NUTRIENT_NUMBER: str = "208"  # kcal
 
+    # LLM API 配置
+    LLM_API_KEY: str = os.getenv("LOSS_LLM_API_KEY", "")
+    LLM_BASE_URL: str = os.getenv("LOSS_LLM_BASE_URL", "https://api.openai.com/v1")
+    LLM_MODEL: str = os.getenv("LOSS_LLM_MODEL", "gpt-3.5-turbo")
+
     @classmethod
     def get_json_data_path(cls) -> Path:
         """获取 JSON 数据文件的完整路径"""
