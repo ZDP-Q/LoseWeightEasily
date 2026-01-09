@@ -26,7 +26,7 @@ Thumbs.db
 *.db
 *.faiss
 *.pkl
-config.yaml  # 配置文件可能包含敏感信息
+config.yaml
 
 # Test and coverage
 .pytest_cache/

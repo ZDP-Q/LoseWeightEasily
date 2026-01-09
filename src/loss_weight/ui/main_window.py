@@ -45,7 +45,7 @@ class NavButton(QPushButton):
             self.setText(f"  {self.icon_text}  {self.label_text}")
             self.setToolTip("")
         else:
-            self.setText(f"  {self.icon_text}")
+            self.setText(self.icon_text)
             self.setToolTip(self.label_text)
 
 

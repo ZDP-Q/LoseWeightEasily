@@ -8,12 +8,17 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from ..database import DatabaseManager
 from .main_window import MainWindow
 from .styles import GLOBAL_STYLE
 
 
 def main():
     """UI 主入口函数"""
+    # 确保数据库表存在
+    db_manager = DatabaseManager()
+    db_manager.create_tables()
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLE)

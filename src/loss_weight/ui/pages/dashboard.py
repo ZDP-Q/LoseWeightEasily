@@ -175,8 +175,10 @@ class DashboardPage(ScrollablePage):
             # 更新最近记录
             self.update_recent_records(tracker)
 
-        except Exception as e:
-            print(f"刷新数据失败: {e}")
+        except Exception:
+            # 静默处理错误，避免影响 UI 显示
+            # 通常是因为还没有数据记录
+            pass
 
     def update_recent_records(self, tracker: WeightTracker):
         """更新最近记录列表"""
