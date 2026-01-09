@@ -94,7 +94,7 @@ def interactive_query(db_path: str = None) -> None:
     db_path = db_path or config.DB_PATH
 
     print("\n" + "=" * 60)
-    print("🍎 食物卡路里查询系统")
+    print("🍎 LossWeightEasily - 轻松减重助手")
     print("=" * 60)
     print("支持中文和英文搜索，输入 'q' 或 'quit' 退出")
     print("=" * 60)

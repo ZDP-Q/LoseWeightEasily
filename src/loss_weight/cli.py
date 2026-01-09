@@ -13,6 +13,7 @@ from .database import DatabaseManager
 from .meal_planner import interactive_meal_planning
 from .query import initialize_system, interactive_query, query_food_calories
 from .search import FoodSearchEngine
+from .weight_tracker import interactive_weight_checkin, show_weight_history
 
 
 def check_db_exists(db_path: str = None) -> bool:
@@ -109,11 +110,22 @@ def handle_meal_plan(args):
     interactive_meal_planning()
 
 
+def handle_weight_checkin(args):
+    """处理 weight 命令"""
+    interactive_weight_checkin()
+
+
+def handle_weight_history(args):
+    """处理 weight-history 命令"""
+    limit = args.limit if hasattr(args, 'limit') else 30
+    show_weight_history(limit)
+
+
 def main():
     """主入口函数"""
     parser = argparse.ArgumentParser(
         prog="loss-weight",
-        description="🍎 食物卡路里查询系统 - 基于语义搜索的智能营养查询工具"
+        description="🍎 LossWeightEasily - 帮助你轻松减重的智能健康管理工具"
     )
 
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
@@ -157,6 +169,15 @@ def main():
     # --- 注册 meal-plan 命令 ---
     meal_plan_parser = subparsers.add_parser("meal-plan", help="生成一日三餐食谱")
     meal_plan_parser.set_defaults(func=handle_meal_plan)
+
+    # --- 注册 weight 命令 ---
+    weight_parser = subparsers.add_parser("weight", help="每日体重打卡")
+    weight_parser.set_defaults(func=handle_weight_checkin)
+
+    # --- 注册 weight-history 命令 ---
+    weight_history_parser = subparsers.add_parser("weight-history", help="查看体重历史记录")
+    weight_history_parser.add_argument("-n", "--limit", type=int, default=30, help="显示记录数量")
+    weight_history_parser.set_defaults(func=handle_weight_history)
 
     args = parser.parse_args()
 

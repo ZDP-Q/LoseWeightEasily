@@ -105,6 +105,22 @@ class DatabaseManager:
             ON food_portions(fdc_id)
         """)
 
+        # 创建体重记录表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS weight_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                weight_kg REAL NOT NULL,
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        """)
+
+        # 创建体重记录时间索引
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_weight_records_date
+            ON weight_records(recorded_at)
+        """)
+
         conn.commit()
         conn.close()
 
