@@ -27,18 +27,66 @@ cd LossWeightEasily
 uv sync
 ```
 
-### 使用
+### 配置 LLM API（可选）
 
-#### 交互式查询（推荐）
+食谱规划功能需要配置 LLM API。支持两种配置方式：
 
+**方法 1：使用 config.yaml（推荐）**
+
+1. 复制示例配置文件：
 ```bash
-uv run python -m loss_weight
+cp config.yaml.example config.yaml
 ```
 
-或者直接运行：
+2. 编辑 `config.yaml`，填写你的 API Key：
+```yaml
+llm:
+  api_key: "your-api-key-here"
+  base_url: "https://api.openai.com/v1"  # 可选
+  model: "gpt-3.5-turbo"  # 可选
+```
+
+**方法 2：使用环境变量**
+
+```bash
+# PowerShell
+$env:LOSS_LLM_API_KEY="your-api-key"
+$env:LOSS_LLM_BASE_URL="https://api.openai.com/v1"
+$env:LOSS_LLM_MODEL="gpt-3.5-turbo"
+```
+
+配置优先级：环境变量 > config.yaml > 默认值
+
+支持的 LLM 服务：
+- OpenAI (gpt-3.5-turbo, gpt-4)
+- DeepSeek (deepseek-chat)
+- 智谱 AI (glm-4)
+- 通义千问 (qwen-max)
+
+### 使用
+
+#### 图形界面（推荐）
+
+```bash
+uv run loss-weight-ui
+```
+
+提供完整的图形化界面：
+- 📊 仪表盘：查看 BMR、TDEE 和体重统计
+- ⚖️ 体重记录：输入体重，查看趋势曲线
+- 🔍 食物搜索：智能语义搜索食物营养信息
+- 🔥 BMR 计算：计算基础代谢和每日总消耗
+- 🍽️ 食谱规划：AI 生成营养均衡的一日三餐
+- ⚙️ 设置：查看和配置应用参数
+
+#### 命令行界面
+
+**交互式查询**
 
 ```bash
 uv run loss-weight
+# 或
+uv run python -m loss_weight
 ```
 
 然后输入食物名称即可查询：

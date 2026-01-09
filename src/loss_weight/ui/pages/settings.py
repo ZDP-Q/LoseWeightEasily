@@ -59,12 +59,20 @@ class SettingsPage(ScrollablePage):
         status_text = "✅ 已配置" if config.LLM_API_KEY else "❌ 未配置"
         status_color = COLORS["success"] if config.LLM_API_KEY else COLORS["danger"]
 
+        # 配置来源
+        config_source = config.get_config_source("LLM_API_KEY")
+        source_text = {
+            "env": "环境变量",
+            "yaml": "config.yaml",
+            "default": "默认值"
+        }.get(config_source, "未知")
+
         status_layout = QHBoxLayout()
         status_label = QLabel("API Key 状态:")
         status_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         status_layout.addWidget(status_label)
 
-        status_value = QLabel(status_text)
+        status_value = QLabel(f"{status_text} ({source_text})")
         status_value.setStyleSheet(f"color: {status_color}; font-weight: bold;")
         status_layout.addWidget(status_value)
         status_layout.addStretch()
@@ -115,16 +123,29 @@ class SettingsPage(ScrollablePage):
         config_layout.addWidget(config_title)
 
         config_text = QLabel("""
-设置以下环境变量后重启应用：
+配置方法（任选其一）：
 
-• LOSS_LLM_API_KEY - API 密钥（必需）
-• LOSS_LLM_BASE_URL - API 地址（可选，默认 OpenAI）
-• LOSS_LLM_MODEL - 模型名称（可选，默认 gpt-3.5-turbo）
+<b>方法 1：编辑 config.yaml 文件</b>
+修改项目根目录的 config.yaml 文件：
+<code>
+llm:
+  api_key: "your-api-key"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-3.5-turbo"
+</code>
 
-示例（PowerShell）：
+<b>方法 2：设置环境变量</b>（优先级更高）
+PowerShell 示例：
+<code>
 $env:LOSS_LLM_API_KEY="your-api-key"
+$env:LOSS_LLM_BASE_URL="https://api.openai.com/v1"
+$env:LOSS_LLM_MODEL="gpt-3.5-turbo"
+</code>
+
+配置优先级：环境变量 > config.yaml > 默认值
         """)
-        config_text.setStyleSheet(f"color: {COLORS['text_secondary']}; font-family: Consolas, monospace;")
+        config_text.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        config_text.setTextFormat(Qt.TextFormat.RichText)
         config_text.setWordWrap(True)
         config_layout.addWidget(config_text)
 
