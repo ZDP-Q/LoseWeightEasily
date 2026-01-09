@@ -2,42 +2,78 @@
 餐食规划模块
 
 基于食材和营养信息，使用 LLM 生成一日三餐食谱。
+使用懒加载模式和 Pydantic 模型。
 """
 
+from __future__ import annotations
 
-from openai import OpenAI
+from typing import TYPE_CHECKING
 
-from .config import config
-from .database import DatabaseManager
+from .models import FoodCompleteInfo, MealPlanRequest, MealPlanResponse
+
+if TYPE_CHECKING:
+    from openai import OpenAI
+
+    from .config import Settings
+    from .database import DatabaseManager
 
 
 class MealPlanner:
     """餐食规划器"""
 
-    def __init__(self, db_path: str = None):
+    def __init__(
+        self,
+        db_manager: DatabaseManager | None = None,
+        db_path: str | None = None,
+        settings: Settings | None = None,
+    ):
         """
         初始化餐食规划器
 
         Args:
-            db_path: 数据库路径
+            db_manager: 数据库管理器实例
+            db_path: 数据库路径（兼容旧代码）
+            settings: 配置实例
         """
-        self.db_manager = DatabaseManager(db_path)
-        self.client: OpenAI | None = None
+        self._db_manager = db_manager
+        self._db_path = db_path
+        self._settings = settings
+        self._client: OpenAI | None = None
+
+    @property
+    def settings(self) -> Settings:
+        """懒加载配置"""
+        if self._settings is None:
+            from .config import get_settings
+
+            self._settings = get_settings()
+        return self._settings
+
+    @property
+    def db_manager(self) -> DatabaseManager:
+        """懒加载数据库管理器"""
+        if self._db_manager is None:
+            from .database import DatabaseManager
+
+            self._db_manager = DatabaseManager(db_path=self._db_path, settings=self.settings)
+        return self._db_manager
 
     def _get_client(self) -> OpenAI:
         """获取 OpenAI 客户端（懒加载）"""
-        if self.client is None:
-            if not config.LLM_API_KEY:
-                raise ValueError(
-                    "未配置 LLM API Key。请设置环境变量 LOSS_LLM_API_KEY"
-                )
-            self.client = OpenAI(
-                api_key=config.LLM_API_KEY,
-                base_url=config.LLM_BASE_URL
-            )
-        return self.client
+        if self._client is None:
+            # 懒加载 openai
+            from openai import OpenAI
 
-    def get_ingredient_nutrition(self, ingredient: str) -> dict | None:
+            if not self.settings.LLM_API_KEY:
+                raise ValueError(
+                    "未配置 LLM API Key。请设置环境变量 LOSS_LLM_API_KEY 或在 config.yaml 中配置"
+                )
+            self._client = OpenAI(
+                api_key=self.settings.LLM_API_KEY, base_url=self.settings.LLM_BASE_URL
+            )
+        return self._client
+
+    def get_ingredient_nutrition(self, ingredient: str) -> FoodCompleteInfo | None:
         """
         获取食材的营养信息
 
@@ -45,22 +81,24 @@ class MealPlanner:
             ingredient: 食材名称
 
         Returns:
-            营养信息字典，包含热量等数据
+            FoodCompleteInfo 模型或 None
         """
         # 通过数据库搜索获取营养信息
-        conn = self.db_manager.get_connection()
-        cursor = conn.cursor()
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
 
-        # 简单模糊搜索
-        cursor.execute("""
-            SELECT f.fdc_id, f.description, f.food_category
-            FROM foods f
-            WHERE f.description LIKE ?
-            LIMIT 1
-        """, (f"%{ingredient}%",))
+            # 简单模糊搜索
+            cursor.execute(
+                """
+                SELECT f.fdc_id, f.description, f.food_category
+                FROM foods f
+                WHERE f.description LIKE ?
+                LIMIT 1
+            """,
+                (f"%{ingredient}%",),
+            )
 
-        result = cursor.fetchone()
-        conn.close()
+            result = cursor.fetchone()
 
         if result:
             fdc_id = result[0]
@@ -69,25 +107,45 @@ class MealPlanner:
 
     def generate_meal_plan(
         self,
-        ingredients: list[str],
+        request: MealPlanRequest | None = None,
+        ingredients: list[str] | None = None,
         preferences: str = "",
-        dietary_restrictions: str = ""
-    ) -> str:
+        dietary_restrictions: str = "",
+    ) -> MealPlanResponse:
         """
         生成一日三餐食谱
 
         Args:
-            ingredients: 可用的食材列表
+            request: MealPlanRequest 模型（推荐）
+            ingredients: 可用的食材列表（兼容旧代码）
             preferences: 饮食偏好（可选）
             dietary_restrictions: 饮食限制（可选）
 
         Returns:
-            生成的食谱文本
+            MealPlanResponse 模型
         """
+        # 处理输入
+        if request is not None:
+            ingredients_list = request.ingredients
+            prefs = request.preferences
+            restrictions = request.dietary_restrictions
+        else:
+            if not ingredients:
+                raise ValueError("必须提供食材列表")
+            # 使用 Pydantic 验证
+            request = MealPlanRequest(
+                ingredients=ingredients,
+                preferences=preferences,
+                dietary_restrictions=dietary_restrictions,
+            )
+            ingredients_list = request.ingredients
+            prefs = request.preferences
+            restrictions = request.dietary_restrictions
+
         client = self._get_client()
 
         # 构建提示词
-        ingredients_text = "、".join(ingredients)
+        ingredients_text = "、".join(ingredients_list)
 
         system_prompt = """你是一位专业的营养师和烹饪顾问。
 你的任务是根据用户提供的食材，设计一份营养均衡、美味健康的一日三餐食谱。
@@ -116,25 +174,29 @@ class MealPlanner:
 
 可用食材：{ingredients_text}"""
 
-        if preferences:
-            user_prompt += f"\n\n饮食偏好：{preferences}"
+        if prefs:
+            user_prompt += f"\n\n饮食偏好：{prefs}"
 
-        if dietary_restrictions:
-            user_prompt += f"\n\n饮食限制：{dietary_restrictions}"
+        if restrictions:
+            user_prompt += f"\n\n饮食限制：{restrictions}"
 
         # 调用 LLM
         try:
             response = client.chat.completions.create(
-                model=config.LLM_MODEL,
+                model=self.settings.LLM_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
             )
 
-            return response.choices[0].message.content
+            plan_text = response.choices[0].message.content
+
+            return MealPlanResponse(
+                ingredients=ingredients_list, plan=plan_text, model_used=self.settings.LLM_MODEL
+            )
 
         except Exception as e:
             raise RuntimeError(f"LLM API 调用失败: {e}") from e
@@ -176,20 +238,18 @@ def interactive_meal_planning() -> None:
 
     try:
         planner = MealPlanner()
-        meal_plan = planner.generate_meal_plan(
-            ingredients=ingredients,
-            preferences=preferences,
-            dietary_restrictions=restrictions
+        response = planner.generate_meal_plan(
+            ingredients=ingredients, preferences=preferences, dietary_restrictions=restrictions
         )
 
         print("\n" + "=" * 60)
-        print(meal_plan)
+        print(response.plan)
         print("=" * 60)
 
     except ValueError as e:
         print(f"\n❌ 配置错误: {e}")
         print("\n💡 使用方法:")
-        print("   1. 设置环境变量 LOSS_LLM_API_KEY")
+        print("   1. 设置环境变量 LOSS_LLM_API_KEY 或在 config.yaml 中配置")
         print("   2. （可选）设置 LOSS_LLM_BASE_URL（默认：https://api.openai.com/v1）")
         print("   3. （可选）设置 LOSS_LLM_MODEL（默认：gpt-3.5-turbo）")
     except RuntimeError as e:

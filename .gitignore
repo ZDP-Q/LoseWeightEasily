@@ -27,6 +27,7 @@ Thumbs.db
 *.faiss
 *.pkl
 config.yaml
+logs/
 
 # Test and coverage
 .pytest_cache/

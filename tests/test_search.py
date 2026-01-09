@@ -16,10 +16,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 @pytest.fixture(scope="module")
 def search_engine():
     """获取搜索引擎实例（模块级别共享）"""
-    from loss_weight.config import config
+    from loss_weight.config import get_settings
     from loss_weight.search import FoodSearchEngine
 
-    if not config.database_exists():
+    settings = get_settings()
+    if not settings.database_exists():
         pytest.skip("数据库不存在，跳过搜索测试")
 
     engine = FoodSearchEngine()
@@ -35,11 +36,14 @@ class TestFoodSearchEngine:
         results = search_engine.search("番茄")
         assert len(results) > 0
 
-        # 检查结果结构
-        fdc_id, description, category, similarity = results[0]
-        assert isinstance(fdc_id, int)
-        assert isinstance(description, str)
-        assert isinstance(similarity, float)
+        # 检查结果结构 - 现在返回 FoodSearchResult 对象
+        result = results[0]
+        assert hasattr(result, "fdc_id")
+        assert hasattr(result, "description")
+        assert hasattr(result, "similarity")
+        assert isinstance(result.fdc_id, int)
+        assert isinstance(result.description, str)
+        assert isinstance(result.similarity, float)
 
     def test_search_english(self, search_engine):
         """测试英文搜索"""
@@ -59,8 +63,8 @@ class TestFoodSearchEngine:
         # 两个搜索应该返回相似的结果
         if results_tomato and results_xihongshi:
             # 检查是否有交集
-            ids_tomato = {r[0] for r in results_tomato}
-            ids_xihongshi = {r[0] for r in results_xihongshi}
+            ids_tomato = {r.fdc_id for r in results_tomato}
+            ids_xihongshi = {r.fdc_id for r in results_xihongshi}
             assert len(ids_tomato & ids_xihongshi) > 0
 
     def test_search_with_details(self, search_engine):
@@ -68,11 +72,20 @@ class TestFoodSearchEngine:
         results = search_engine.search_with_details("apple", limit=2)
 
         if results:
+            # 现在返回 FoodCompleteInfo 对象
             result = results[0]
-            assert "name" in result
-            assert "category" in result
-            assert "calories_per_100g" in result
-            assert "similarity" in result
+            assert hasattr(result, "name")
+            assert hasattr(result, "category")
+            assert hasattr(result, "calories_per_100g")
+            assert hasattr(result, "similarity")
+
+    def test_search_query_model(self, search_engine):
+        """测试使用 SearchQuery 模型搜索"""
+        from loss_weight.models import SearchQuery
+
+        query = SearchQuery(query="chicken", limit=5)
+        results = search_engine.search(query)
+        assert len(results) <= 5
 
 
 if __name__ == "__main__":

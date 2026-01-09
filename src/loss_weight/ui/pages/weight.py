@@ -4,7 +4,6 @@
 提供体重打卡、历史记录和趋势图表。
 """
 
-
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
@@ -21,7 +20,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...weight_tracker import WeightTracker
 from ..styles import COLORS
 from .base import Card, ScrollablePage
 
@@ -35,13 +33,20 @@ class WeightChart(QWidget):
         self.setMinimumHeight(300)
         self.setStyleSheet(f"background-color: {COLORS['bg_card']}; border-radius: 16px;")
 
-    def set_data(self, records: list[dict]):
+    def set_data(self, records: list):
         """设置数据"""
         self.data = []
         for record in reversed(records):  # 按时间正序
-            if record['recorded_at'] and record['weight_kg']:
-                date_str = record['recorded_at'][:10]
-                self.data.append((date_str, record['weight_kg']))
+            # WeightRecord 是 Pydantic 模型，使用属性访问
+            recorded_at = record.recorded_at
+            weight_kg = record.weight_kg
+            if recorded_at and weight_kg:
+                # recorded_at 可能是 datetime 或字符串
+                if hasattr(recorded_at, "strftime"):
+                    date_str = recorded_at.strftime("%Y-%m-%d")
+                else:
+                    date_str = str(recorded_at)[:10]
+                self.data.append((date_str, weight_kg))
         self.update()
 
     def paintEvent(self, event):
@@ -56,7 +61,9 @@ class WeightChart(QWidget):
             # 数据不足，显示提示
             painter.setPen(QColor(COLORS["text_muted"]))
             painter.setFont(QFont("Microsoft YaHei UI", 14))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "需要至少两条记录才能显示趋势图")
+            painter.drawText(
+                self.rect(), Qt.AlignmentFlag.AlignCenter, "需要至少两条记录才能显示趋势图"
+            )
             return
 
         # 计算绘图区域
@@ -93,9 +100,12 @@ class WeightChart(QWidget):
             # Y轴刻度
             painter.setPen(QColor(COLORS["text_muted"]))
             painter.drawText(
-                int(padding - 10), int(y - 8), 50, 20,
+                int(padding - 10),
+                int(y - 8),
+                50,
+                20,
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                f"{weight:.1f}"
+                f"{weight:.1f}",
             )
 
         # 计算点的位置
@@ -142,7 +152,11 @@ class WeightChart(QWidget):
 
         for i in range(0, len(self.data), step):
             date, _ = self.data[i]
-            x = chart_left + (chart_width * i / (len(self.data) - 1)) if len(self.data) > 1 else chart_left
+            x = (
+                chart_left + (chart_width * i / (len(self.data) - 1))
+                if len(self.data) > 1
+                else chart_left
+            )
 
             # 显示日期（只显示月-日）
             try:
@@ -151,9 +165,12 @@ class WeightChart(QWidget):
                 display_date = date
 
             painter.drawText(
-                int(x - 25), int(chart_bottom + 8), 50, 20,
+                int(x - 25),
+                int(chart_bottom + 8),
+                50,
+                20,
                 Qt.AlignmentFlag.AlignCenter,
-                display_date
+                display_date,
             )
 
 
@@ -163,7 +180,14 @@ class WeightPage(ScrollablePage):
     def __init__(self, parent=None):
         self.page_title = "体重记录"
         super().__init__(self.page_title, parent)
-        self.tracker = WeightTracker()
+
+        # 使用容器获取 WeightTracker，确保数据库表已创建
+        from ...container import get_container
+
+        container = get_container()
+        container.ensure_database()  # 确保数据库表存在
+        self.tracker = container.weight_tracker
+
         self.setup_ui()
         self.refresh_data()
 
@@ -302,6 +326,10 @@ class WeightPage(ScrollablePage):
 
     def on_submit(self):
         """提交体重记录"""
+        from ...logging_config import get_logger
+
+        logger = get_logger(__name__)
+
         weight = self.weight_input.value()
         notes = self.notes_input.text().strip()
 
@@ -310,49 +338,54 @@ class WeightPage(ScrollablePage):
             return
 
         try:
+            logger.info(f"记录体重: {weight:.1f} kg, 备注: '{notes}'")
             self.tracker.record_weight(weight, notes)
             self.notes_input.clear()
             self.refresh_data()
 
             # 显示成功提示
+            logger.info(f"体重记录成功: {weight:.1f} kg")
             QMessageBox.information(self, "成功", f"✅ 已记录体重: {weight:.1f} kg")
 
         except Exception as e:
+            logger.error(f"体重记录失败: {e}")
             QMessageBox.critical(self, "错误", f"记录失败: {e}")
 
     def refresh_data(self):
         """刷新数据"""
         try:
-            # 获取统计信息
+            # 获取统计信息 (WeightStatistics 是 Pydantic 模型)
             stats = self.tracker.get_weight_statistics()
 
             # 更新统计标签
-            if stats['latest_weight']:
-                self.stat_labels["current"].setText(f"{stats['latest_weight']:.1f} kg")
+            if stats.latest_weight:
+                self.stat_labels["current"].setText(f"{stats.latest_weight:.1f} kg")
 
-            if stats['weight_change'] is not None:
-                change = stats['weight_change']
+            if stats.weight_change is not None:
+                change = stats.weight_change
                 sign = "+" if change > 0 else ""
                 color = COLORS["success"] if change <= 0 else COLORS["danger"]
                 self.stat_labels["change"].setText(f"{sign}{change:.1f} kg")
-                self.stat_labels["change"].setStyleSheet(f"color: {color}; font-size: 18px; font-weight: bold;")
+                self.stat_labels["change"].setStyleSheet(
+                    f"color: {color}; font-size: 18px; font-weight: bold;"
+                )
 
-            if stats['average_weight']:
-                self.stat_labels["average"].setText(f"{stats['average_weight']:.1f} kg")
+            if stats.average_weight:
+                self.stat_labels["average"].setText(f"{stats.average_weight:.1f} kg")
 
-            if stats['min_weight']:
-                self.stat_labels["min"].setText(f"{stats['min_weight']:.1f} kg")
+            if stats.min_weight:
+                self.stat_labels["min"].setText(f"{stats.min_weight:.1f} kg")
 
-            if stats['max_weight']:
-                self.stat_labels["max"].setText(f"{stats['max_weight']:.1f} kg")
+            if stats.max_weight:
+                self.stat_labels["max"].setText(f"{stats.max_weight:.1f} kg")
 
-            self.stat_labels["records"].setText(f"{stats['total_records']} 次")
+            self.stat_labels["records"].setText(f"{stats.total_records} 次")
 
             # 设置默认输入值为最近一次体重
-            if stats['latest_weight']:
-                self.weight_input.setValue(stats['latest_weight'])
+            if stats.latest_weight:
+                self.weight_input.setValue(stats.latest_weight)
 
-            # 获取历史记录
+            # 获取历史记录 (返回 list[WeightRecord])
             records = self.tracker.get_records(50)
 
             # 更新图表
@@ -362,21 +395,26 @@ class WeightPage(ScrollablePage):
             self.history_table.setRowCount(len(records))
 
             for i, record in enumerate(records):
-                # 日期
-                date_item = QTableWidgetItem(record['recorded_at'][:19] if record['recorded_at'] else "")
+                # 日期 (WeightRecord 是 Pydantic 模型)
+                recorded_at = record.recorded_at
+                if hasattr(recorded_at, "strftime"):
+                    date_str = recorded_at.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    date_str = str(recorded_at)[:19] if recorded_at else ""
+                date_item = QTableWidgetItem(date_str)
                 date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.history_table.setItem(i, 0, date_item)
 
                 # 体重
-                weight_item = QTableWidgetItem(f"{record['weight_kg']:.1f}")
+                weight_item = QTableWidgetItem(f"{record.weight_kg:.1f}")
                 weight_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.history_table.setItem(i, 1, weight_item)
 
                 # 变化
                 change_text = ""
                 if i < len(records) - 1:
-                    prev_weight = records[i + 1]['weight_kg']
-                    change = record['weight_kg'] - prev_weight
+                    prev_weight = records[i + 1].weight_kg
+                    change = record.weight_kg - prev_weight
                     if abs(change) >= 0.1:
                         sign = "+" if change > 0 else ""
                         change_text = f"{sign}{change:.1f}"
@@ -389,10 +427,12 @@ class WeightPage(ScrollablePage):
                 self.history_table.setItem(i, 2, change_item)
 
                 # 备注
-                notes_item = QTableWidgetItem(record['notes'] or "")
+                notes_item = QTableWidgetItem(record.notes or "")
                 self.history_table.setItem(i, 3, notes_item)
 
-        except Exception:
-            # 静默处理错误，避免影响 UI 显示
-            # 通常是因为还没有数据记录
-            pass
+        except Exception as e:
+            # 记录错误日志
+            from ...logging_config import get_logger
+
+            logger = get_logger(__name__)
+            logger.debug(f"刷新体重数据失败: {e}")

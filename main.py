@@ -36,6 +36,7 @@ def main():
 def query_food_calories(search_term, db_path="food_data.db"):
     """查询食物卡路里（向后兼容接口）"""
     from loss_weight.query import query_food_calories as _query
+
     _query(search_term, db_path)
 
 

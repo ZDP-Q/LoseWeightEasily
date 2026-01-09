@@ -36,6 +36,8 @@ dependencies = [
     "openai>=1.0.0",
     "PySide6>=6.6.0",
     "PyYAML>=6.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -66,6 +68,24 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+filterwarnings = [
+    # 忽略 FAISS 的 SwigPy 弃用警告（第三方库问题）
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    # 忽略 pydantic 内部使用的弃用警告
+    "ignore:.*pkg_resources.*:DeprecationWarning",
+    # 忽略 numpy 相关警告
+    "ignore:.*np.float.*:DeprecationWarning",
+]
+markers = [
+    "unit: 单元测试 - 测试单个函数或类",
+    "integration: 集成测试 - 测试多个组件协作",
+    "e2e: 端到端测试 - 测试完整工作流程",
+    "slow: 慢速测试 - 运行时间较长的测试",
+    "requires_db: 需要真实数据库 - 需要已初始化的数据库",
+    "requires_model: 需要嵌入模型 - 需要下载的模型文件",
+]
 
 [tool.ruff]
 target-version = "py310"
@@ -87,3 +107,9 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["loss_weight"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]

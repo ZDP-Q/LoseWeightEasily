@@ -6,26 +6,23 @@
 
 # 颜色主题
 COLORS = {
-    "primary": "#6366f1",       # 主色调 - 靛蓝色
+    "primary": "#6366f1",  # 主色调 - 靛蓝色
     "primary_hover": "#4f46e5",
     "primary_light": "#e0e7ff",
-    "secondary": "#10b981",     # 辅助色 - 翠绿色
+    "secondary": "#10b981",  # 辅助色 - 翠绿色
     "secondary_hover": "#059669",
-    "accent": "#f59e0b",        # 强调色 - 琥珀色
-    "danger": "#ef4444",        # 危险色 - 红色
-    "warning": "#f59e0b",       # 警告色 - 橙色
-    "success": "#10b981",       # 成功色 - 绿色
-
-    "bg_dark": "#0f172a",       # 深色背景
-    "bg_main": "#1e293b",       # 主背景
-    "bg_card": "#334155",       # 卡片背景
-    "bg_hover": "#475569",      # 悬停背景
-
+    "accent": "#f59e0b",  # 强调色 - 琥珀色
+    "danger": "#ef4444",  # 危险色 - 红色
+    "warning": "#f59e0b",  # 警告色 - 橙色
+    "success": "#10b981",  # 成功色 - 绿色
+    "bg_dark": "#0f172a",  # 深色背景
+    "bg_main": "#1e293b",  # 主背景
+    "bg_card": "#334155",  # 卡片背景
+    "bg_hover": "#475569",  # 悬停背景
     "text_primary": "#f8fafc",  # 主要文字
-    "text_secondary": "#94a3b8", # 次要文字
-    "text_muted": "#64748b",    # 淡化文字
-
-    "border": "#475569",        # 边框
+    "text_secondary": "#94a3b8",  # 次要文字
+    "text_muted": "#64748b",  # 淡化文字
+    "border": "#475569",  # 边框
     "border_light": "#334155",  # 浅边框
 }
 

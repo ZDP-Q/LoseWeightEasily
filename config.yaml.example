@@ -51,3 +51,27 @@ embedding:
   # Sentence Transformers 模型名称
   # 支持中英文的多语言模型
   model: "paraphrase-multilingual-MiniLM-L12-v2"
+
+# 日志配置
+logging:
+  # 日志模式
+  # dev: 开发模式，输出详细的调试信息
+  # release: 生产模式，仅输出重要信息
+  mode: "dev"
+  
+  # 日志级别
+  # DEBUG: 调试信息（仅开发模式）
+  # INFO: 一般运行信息
+  # WARNING: 警告信息
+  # ERROR: 错误信息
+  # CRITICAL: 严重错误
+  level: "DEBUG"
+  
+  # 日志文件目录
+  dir: "logs"
+  
+  # 是否启用控制台输出
+  enable_console: true
+  
+  # 是否启用文件日志
+  enable_file: true

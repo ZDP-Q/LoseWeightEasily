@@ -114,13 +114,15 @@ class BMRPage(ScrollablePage):
         form_layout.addWidget(activity_label, 2, 0)
 
         self.activity_combo = QComboBox()
-        self.activity_combo.addItems([
-            "🛋️ 久坐 (办公室工作，很少运动)",
-            "🚶 轻度活动 (每周运动 1-3 天)",
-            "🏃 中度活动 (每周运动 3-5 天)",
-            "💪 重度活动 (每周运动 6-7 天)",
-            "🔥 极重度活动 (体力工作或双倍训练)"
-        ])
+        self.activity_combo.addItems(
+            [
+                "🛋️ 久坐 (办公室工作，很少运动)",
+                "🚶 轻度活动 (每周运动 1-3 天)",
+                "🏃 中度活动 (每周运动 3-5 天)",
+                "💪 重度活动 (每周运动 6-7 天)",
+                "🔥 极重度活动 (体力工作或双倍训练)",
+            ]
+        )
         self.activity_combo.setMinimumWidth(300)
         form_layout.addWidget(self.activity_combo, 2, 1, 1, 3)
 
@@ -155,7 +157,7 @@ class BMRPage(ScrollablePage):
             title="基础代谢率 (BMR)",
             value="-- kcal/天",
             icon="🔥",
-            change="身体维持基本功能所需能量"
+            change="身体维持基本功能所需能量",
         )
         bmr_layout.addWidget(self.bmr_stat)
 
@@ -163,7 +165,7 @@ class BMRPage(ScrollablePage):
             title="每日总消耗 (TDEE)",
             value="-- kcal/天",
             icon="⚡",
-            change="包含日常活动的总能量消耗"
+            change="包含日常活动的总能量消耗",
         )
         bmr_layout.addWidget(self.tdee_stat)
 
@@ -270,7 +272,9 @@ class BMRPage(ScrollablePage):
 
             # 高亮当前选择的活动水平
             if key == activity_level:
-                self.tdee_labels[key].setStyleSheet(f"color: {COLORS['primary']}; font-weight: bold;")
+                self.tdee_labels[key].setStyleSheet(
+                    f"color: {COLORS['primary']}; font-weight: bold;"
+                )
             else:
                 self.tdee_labels[key].setStyleSheet(f"color: {COLORS['text_primary']};")
 
@@ -284,7 +288,7 @@ class BMRPage(ScrollablePage):
 • 温和减重（每周约 0.5 kg）：每日摄入约 {deficit_500:.0f} kcal
 • 中等减重（每周约 0.75 kg）：每日摄入约 {deficit_750:.0f} kcal
 
-⚠️ 注意：每日摄入不应低于 {1200 if gender == 'female' else 1500} kcal，以确保基本营养需求。
+⚠️ 注意：每日摄入不应低于 {1200 if gender == "female" else 1500} kcal，以确保基本营养需求。
 建议结合适量运动，既能增加能量消耗，又能保持肌肉量。
         """
         self.advice_content.setText(advice.strip())

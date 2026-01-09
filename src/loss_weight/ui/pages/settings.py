@@ -48,9 +48,7 @@ class SettingsPage(ScrollablePage):
         # LLM API 配置
         api_card = Card("🤖 LLM API 配置")
 
-        api_info = QLabel(
-            "食谱规划功能需要配置 LLM API。支持 OpenAI、DeepSeek 等兼容服务。"
-        )
+        api_info = QLabel("食谱规划功能需要配置 LLM API。支持 OpenAI、DeepSeek 等兼容服务。")
         api_info.setStyleSheet(f"color: {COLORS['text_secondary']}; margin-bottom: 16px;")
         api_info.setWordWrap(True)
         api_card.card_layout.addWidget(api_info)
@@ -61,11 +59,9 @@ class SettingsPage(ScrollablePage):
 
         # 配置来源
         config_source = config.get_config_source("LLM_API_KEY")
-        source_text = {
-            "env": "环境变量",
-            "yaml": "config.yaml",
-            "default": "默认值"
-        }.get(config_source, "未知")
+        source_text = {"env": "环境变量", "yaml": "config.yaml", "default": "默认值"}.get(
+            config_source, "未知"
+        )
 
         status_layout = QHBoxLayout()
         status_label = QLabel("API Key 状态:")
@@ -194,9 +190,9 @@ $env:LOSS_LLM_MODEL="gpt-3.5-turbo"
         help_card = Card("❓ 帮助")
 
         help_links = QLabel(f"""
-<p>📖 <a href="https://github.com/ZDP-Q/LossWeightEasily" style="color: {COLORS['primary']};">GitHub 仓库</a></p>
-<p>📝 <a href="https://github.com/ZDP-Q/LossWeightEasily/issues" style="color: {COLORS['primary']};">报告问题</a></p>
-<p>💬 <a href="https://github.com/ZDP-Q/LossWeightEasily/discussions" style="color: {COLORS['primary']};">讨论区</a></p>
+<p>📖 <a href="https://github.com/ZDP-Q/LossWeightEasily" style="color: {COLORS["primary"]};">GitHub 仓库</a></p>
+<p>📝 <a href="https://github.com/ZDP-Q/LossWeightEasily/issues" style="color: {COLORS["primary"]};">报告问题</a></p>
+<p>💬 <a href="https://github.com/ZDP-Q/LossWeightEasily/discussions" style="color: {COLORS["primary"]};">讨论区</a></p>
         """)
         help_links.setTextFormat(Qt.TextFormat.RichText)
         help_links.setOpenExternalLinks(True)

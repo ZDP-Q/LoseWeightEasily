@@ -128,17 +128,34 @@ LossWeightEasily/
 ├── src/
 │   └── loss_weight/          # 主要源代码
 │       ├── __init__.py       # 包初始化
+│       ├── models.py         # Pydantic 数据模型
+│       ├── container.py      # 依赖注入容器
+│       ├── config.py         # Pydantic Settings 配置
 │       ├── cli.py            # 命令行接口
-│       ├── config.py         # 配置管理
 │       ├── database.py       # 数据库操作
+│       ├── search.py         # FAISS 搜索引擎
 │       ├── query.py          # 查询接口
-│       └── search.py         # 搜索引擎
+│       ├── bmr.py            # BMR/TDEE 计算
+│       ├── weight_tracker.py # 体重记录
+│       ├── meal_planner.py   # AI 食谱规划
+│       └── ui/               # PySide6 GUI
+│           ├── __init__.py   # UI 入口
+│           ├── main_window.py # 主窗口
+│           ├── styles.py     # 样式常量
+│           └── pages/        # UI 页面
 ├── tests/                    # 测试代码
 ├── docs/                     # 文档
 ├── data/                     # 数据文件
 ├── pyproject.toml            # 项目配置
 └── README.md                 # 项目说明
 ```
+
+## 🏗️ 架构特性
+
+- **Pydantic v2 数据模型**: 所有数据结构使用 Pydantic 模型确保类型安全
+- **依赖注入容器**: 集中管理服务实例，支持懒加载
+- **Lazy Import**: 延迟导入重型依赖（FAISS、sentence-transformers）加快启动
+- **上下文管理器**: 数据库连接自动管理，避免资源泄漏
 
 ## 🛠️ 命令行工具
 
@@ -162,9 +179,13 @@ uv run loss-weight rebuild-index
 ## 🔧 技术栈
 
 - **Python 3.10+**
+- **Pydantic v2** - 数据验证和类型安全
+- **pydantic-settings** - 配置管理
 - **FAISS** - Facebook AI 的高效相似性搜索库
 - **Sentence-Transformers** - 多语言语义嵌入模型
 - **SQLite** - 轻量级本地数据库
+- **PySide6** - 跨平台 GUI 框架
+- **OpenAI API** - LLM 食谱规划
 - **uv** - 现代 Python 包管理器
 
 ## 📊 数据来源

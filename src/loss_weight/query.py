@@ -4,17 +4,16 @@
 提供用户友好的查询接口和交互式命令行界面。
 """
 
-
 from .config import config
 from .database import DatabaseManager
+from .logging_config import get_logger
 from .search import FoodSearchEngine
+
+logger = get_logger(__name__)
 
 
 def query_food_calories(
-    search_term: str,
-    db_path: str = None,
-    limit: int = None,
-    engine: FoodSearchEngine = None
+    search_term: str, db_path: str = None, limit: int = None, engine: FoodSearchEngine = None
 ) -> None:
     """
     查询食物卡路里的主函数
@@ -67,8 +66,10 @@ def query_food_calories(
         if calorie_info["portions"]:
             print("   📏 常用份量:")
             for amount, unit, gram_weight in calorie_info["portions"][:2]:
-                calories_for_portion = (calorie_info['calories_per_100g'] * gram_weight) / 100
-                print(f"      • {amount} {unit} ({gram_weight}g) = {calories_for_portion:.1f} {calorie_info['unit']}")
+                calories_for_portion = (calorie_info["calories_per_100g"] * gram_weight) / 100
+                print(
+                    f"      • {amount} {unit} ({gram_weight}g) = {calories_for_portion:.1f} {calorie_info['unit']}"
+                )
         print()
         idx += 1
 
@@ -110,7 +111,7 @@ def interactive_query(db_path: str = None) -> None:
             if not search_term:
                 continue
 
-            if search_term.lower() in ['q', 'quit', 'exit', '退出']:
+            if search_term.lower() in ["q", "quit", "exit", "退出"]:
                 print("\n👋 再见！")
                 break
 
@@ -141,13 +142,12 @@ def initialize_system(db_path: str = None, force_rebuild: bool = False) -> None:
         if not json_path.exists():
             raise FileNotFoundError(f"数据文件不存在: {json_path}")
 
-        print("📥 首次运行，正在导入数据...")
+        logger.info("首次运行，正在导入数据...")
         stats = db_manager.import_from_json(str(json_path))
-        print("\n📊 导入统计:")
-        print(f"   食品数量: {stats['foods']}")
-        print(f"   营养素种类: {stats['nutrients']}")
-        print(f"   食品-营养素关联: {stats['food_nutrients']}")
-        print(f"   份量数据: {stats['portions']}")
+        logger.info(
+            f"导入统计: 食品数量={stats.foods}, 营养素种类={stats.nutrients}, "
+            f"食品-营养素关联={stats.food_nutrients}, 份量数据={stats.portions}"
+        )
 
     # 构建搜索索引
     engine = FoodSearchEngine(db_path)

@@ -2,18 +2,30 @@
 基础代谢率 (BMR) 计算模块
 
 提供基于 Mifflin-St Jeor 公式的 BMR 计算功能。
+使用 Pydantic 模型确保数据验证。
 """
 
-from typing import Literal
+from __future__ import annotations
 
-Gender = Literal["male", "female"]
+from .models import (
+    ActivityLevel,
+    BMRInput,
+    BMRResult,
+    Gender,
+    TDEEResult,
+)
 
-def calculate_bmr(
-    weight_kg: float,
-    height_cm: float,
-    age: int,
-    gender: Gender
-) -> float:
+# 活动系数
+ACTIVITY_MULTIPLIERS: dict[ActivityLevel, float] = {
+    "sedentary": 1.2,  # 久坐 (办公室工作，很少运动)
+    "light": 1.375,  # 轻度活动 (每周运动 1-3 天)
+    "moderate": 1.55,  # 中度活动 (每周运动 3-5 天)
+    "active": 1.725,  # 重度活动 (每周运动 6-7 天)
+    "very_active": 1.9,  # 极重度活动 (体力工作 或 双倍训练)
+}
+
+
+def calculate_bmr(weight_kg: float, height_cm: float, age: int, gender: Gender) -> float:
     """
     计算基础代谢率 (Mifflin-St Jeor 公式)
 
@@ -37,7 +49,27 @@ def calculate_bmr(
     else:
         return base_bmr - 161
 
-def calculate_tdee(bmr: float, activity_level: str) -> float:
+
+def calculate_bmr_from_input(input_data: BMRInput) -> BMRResult:
+    """
+    使用 Pydantic 模型计算 BMR
+
+    Args:
+        input_data: BMRInput 模型
+
+    Returns:
+        BMRResult 模型
+    """
+    bmr = calculate_bmr(
+        weight_kg=input_data.weight_kg,
+        height_cm=input_data.height_cm,
+        age=input_data.age,
+        gender=input_data.gender,
+    )
+    return BMRResult(bmr=bmr, input_data=input_data)
+
+
+def calculate_tdee(bmr: float, activity_level: ActivityLevel) -> float:
     """
     计算每日总能量消耗 (TDEE)
 
@@ -48,12 +80,33 @@ def calculate_tdee(bmr: float, activity_level: str) -> float:
     Returns:
         TDEE 数值 (kcal/day)
     """
-    multipliers = {
-        "sedentary": 1.2,      # 久坐 (办公室工作，很少运动)
-        "light": 1.375,        # 轻度活动 (每周运动 1-3 天)
-        "moderate": 1.55,      # 中度活动 (每周运动 3-5 天)
-        "active": 1.725,       # 重度活动 (每周运动 6-7 天)
-        "very_active": 1.9     # 极重度活动 (体力工作 或 双倍训练)
-    }
+    return bmr * ACTIVITY_MULTIPLIERS.get(activity_level, 1.2)
 
-    return bmr * multipliers.get(activity_level, 1.2)
+
+def calculate_tdee_result(bmr: float, activity_level: ActivityLevel) -> TDEEResult:
+    """
+    计算 TDEE 并返回详细结果
+
+    Args:
+        bmr: 基础代谢率
+        activity_level: 活动水平
+
+    Returns:
+        TDEEResult 模型
+    """
+    multiplier = ACTIVITY_MULTIPLIERS.get(activity_level, 1.2)
+    tdee = bmr * multiplier
+    return TDEEResult(bmr=bmr, activity_level=activity_level, tdee=tdee, multiplier=multiplier)
+
+
+def get_all_tdee_levels(bmr: float) -> list[TDEEResult]:
+    """
+    获取所有活动水平的 TDEE
+
+    Args:
+        bmr: 基础代谢率
+
+    Returns:
+        所有活动水平的 TDEEResult 列表
+    """
+    return [calculate_tdee_result(bmr, level) for level in ACTIVITY_MULTIPLIERS.keys()]

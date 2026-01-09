@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ...weight_tracker import WeightTracker
 from ..styles import COLORS
 from .base import Card, ScrollablePage, StatCard
 
@@ -54,36 +53,16 @@ class DashboardPage(ScrollablePage):
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(20)
 
-        self.weight_card = StatCard(
-            title="当前体重",
-            value="-- kg",
-            icon="⚖️",
-            change=""
-        )
+        self.weight_card = StatCard(title="当前体重", value="-- kg", icon="⚖️", change="")
         stats_layout.addWidget(self.weight_card)
 
-        self.target_card = StatCard(
-            title="目标体重",
-            value="-- kg",
-            icon="🎯",
-            change=""
-        )
+        self.target_card = StatCard(title="目标体重", value="-- kg", icon="🎯", change="")
         stats_layout.addWidget(self.target_card)
 
-        self.bmr_card = StatCard(
-            title="基础代谢",
-            value="-- kcal",
-            icon="🔥",
-            change=""
-        )
+        self.bmr_card = StatCard(title="基础代谢", value="-- kcal", icon="🔥", change="")
         stats_layout.addWidget(self.bmr_card)
 
-        self.records_card = StatCard(
-            title="打卡天数",
-            value="0 天",
-            icon="📅",
-            change=""
-        )
+        self.records_card = StatCard(title="打卡天数", value="0 天", icon="📅", change="")
         stats_layout.addWidget(self.records_card)
 
         self.main_layout.addLayout(stats_layout)
@@ -154,33 +133,41 @@ class DashboardPage(ScrollablePage):
     def refresh_data(self):
         """刷新数据"""
         try:
-            tracker = WeightTracker()
+            from ...container import get_container
+
+            container = get_container()
+            container.ensure_database()
+            tracker = container.weight_tracker
+
+            # WeightStatistics 是 Pydantic 模型，使用属性访问
             stats = tracker.get_weight_statistics()
 
             # 更新当前体重
-            if stats['latest_weight']:
-                weight_text = f"{stats['latest_weight']:.1f} kg"
+            if stats.latest_weight:
+                weight_text = f"{stats.latest_weight:.1f} kg"
                 change = ""
                 change_positive = True
 
-                if stats['weight_change'] is not None and stats['total_records'] > 1:
-                    change = f"{'↓' if stats['weight_change'] < 0 else '↑'} {abs(stats['weight_change']):.1f} kg 自首次记录"
-                    change_positive = stats['weight_change'] <= 0
+                if stats.weight_change is not None and stats.total_records > 1:
+                    change = f"{'↓' if stats.weight_change < 0 else '↑'} {abs(stats.weight_change):.1f} kg 自首次记录"
+                    change_positive = stats.weight_change <= 0
 
                 self.weight_card.update_value(weight_text, change, change_positive)
 
             # 更新打卡天数
-            self.records_card.update_value(f"{stats['total_records']} 天")
+            self.records_card.update_value(f"{stats.total_records} 天")
 
             # 更新最近记录
             self.update_recent_records(tracker)
 
-        except Exception:
-            # 静默处理错误，避免影响 UI 显示
-            # 通常是因为还没有数据记录
-            pass
+        except Exception as e:
+            # 记录错误日志
+            from ...logging_config import get_logger
 
-    def update_recent_records(self, tracker: WeightTracker):
+            logger = get_logger(__name__)
+            logger.debug(f"刷新仪表盘数据失败: {e}")
+
+    def update_recent_records(self, tracker):
         """更新最近记录列表"""
         # 清空现有内容
         while self.recent_records_layout.count():
@@ -188,6 +175,7 @@ class DashboardPage(ScrollablePage):
             if item.widget():
                 item.widget().deleteLater()
 
+        # 返回 list[WeightRecord] Pydantic 模型
         records = tracker.get_records(5)
 
         if not records:
@@ -210,21 +198,26 @@ class DashboardPage(ScrollablePage):
             record_layout = QHBoxLayout(record_frame)
             record_layout.setContentsMargins(16, 12, 16, 12)
 
-            # 日期
-            date_label = QLabel(record['recorded_at'][:10] if record['recorded_at'] else "")
+            # 日期 (WeightRecord 是 Pydantic 模型)
+            recorded_at = record.recorded_at
+            if hasattr(recorded_at, "strftime"):
+                date_str = recorded_at.strftime("%Y-%m-%d")
+            else:
+                date_str = str(recorded_at)[:10] if recorded_at else ""
+            date_label = QLabel(date_str)
             date_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
             record_layout.addWidget(date_label)
 
             # 体重
-            weight_label = QLabel(f"{record['weight_kg']:.1f} kg")
+            weight_label = QLabel(f"{record.weight_kg:.1f} kg")
             weight_label.setFont(QFont("Microsoft YaHei UI", 14, QFont.Weight.Bold))
             weight_label.setStyleSheet(f"color: {COLORS['text_primary']};")
             record_layout.addWidget(weight_label)
 
             # 变化（与上一条记录比较）
             if i < len(records) - 1:
-                prev_weight = records[i + 1]['weight_kg']
-                change = record['weight_kg'] - prev_weight
+                prev_weight = records[i + 1].weight_kg
+                change = record.weight_kg - prev_weight
                 if abs(change) >= 0.1:
                     change_text = f"{'↓' if change < 0 else '↑'} {abs(change):.1f}"
                     color = COLORS["success"] if change < 0 else COLORS["danger"]
@@ -235,8 +228,8 @@ class DashboardPage(ScrollablePage):
             record_layout.addStretch()
 
             # 备注
-            if record['notes']:
-                notes_label = QLabel(record['notes'])
+            if record.notes:
+                notes_label = QLabel(record.notes)
                 notes_label.setStyleSheet(f"color: {COLORS['text_muted']};")
                 record_layout.addWidget(notes_label)
 
@@ -249,7 +242,7 @@ class DashboardPage(ScrollablePage):
 
         # 通知主窗口切换页面
         main_window = self.window()
-        if hasattr(main_window, 'nav_bar'):
+        if hasattr(main_window, "nav_bar"):
             page_map = {
                 "weight": 1,
                 "food": 2,

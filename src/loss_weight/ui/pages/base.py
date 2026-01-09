@@ -54,7 +54,7 @@ class StatCard(QFrame):
         icon: str = "",
         change: str = "",
         change_positive: bool = True,
-        parent=None
+        parent=None,
     ):
         super().__init__(parent)
         self.setObjectName("stat_card")
@@ -100,7 +100,7 @@ class StatCard(QFrame):
     def update_value(self, value: str, change: str = "", change_positive: bool = True):
         """更新数值"""
         self.value_label.setText(value)
-        if hasattr(self, 'change_label') and change:
+        if hasattr(self, "change_label") and change:
             self.change_label.setText(change)
             self.change_label.setObjectName(
                 "stat_change_positive" if change_positive else "stat_change_negative"

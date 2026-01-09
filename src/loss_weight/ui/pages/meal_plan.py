@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -26,7 +26,7 @@ from .base import Card, ScrollablePage
 class MealPlanWorker(QThread):
     """食谱生成工作线程"""
 
-    finished = Signal(str)
+    finished = Signal(object)  # 返回 MealPlanResponse 模型
     error = Signal(str)
 
     def __init__(self, ingredients: list, preferences: str, restrictions: str):
@@ -38,16 +38,26 @@ class MealPlanWorker(QThread):
     def run(self):
         """执行生成"""
         try:
+            from ...logging_config import get_logger
             from ...meal_planner import MealPlanner
 
+            logger = get_logger(__name__)
+            logger.info(f"开始生成食谱: 食材={self.ingredients}")
+
             planner = MealPlanner()
-            result = planner.generate_meal_plan(
+            response = planner.generate_meal_plan(
                 ingredients=self.ingredients,
                 preferences=self.preferences,
-                dietary_restrictions=self.restrictions
+                dietary_restrictions=self.restrictions,
             )
-            self.finished.emit(result)
+
+            logger.info(f"食谱生成完成: 使用模型={response.model_used}")
+            self.finished.emit(response)  # 返回 MealPlanResponse 模型
         except Exception as e:
+            from ...logging_config import get_logger
+
+            logger = get_logger(__name__)
+            logger.error(f"食谱生成失败: {e}")
             self.error.emit(str(e))
 
 
@@ -129,9 +139,7 @@ class MealPlanPage(ScrollablePage):
 
         # API 配置提示
         if not config.LLM_API_KEY:
-            api_tip = QLabel(
-                "⚠️ 未配置 LLM API Key，请设置环境变量 LOSS_LLM_API_KEY"
-            )
+            api_tip = QLabel("⚠️ 未配置 LLM API Key，请设置环境变量 LOSS_LLM_API_KEY")
             api_tip.setStyleSheet(f"""
                 color: {COLORS["warning"]};
                 background-color: rgba(245, 158, 11, 0.1);
@@ -153,17 +161,16 @@ class MealPlanPage(ScrollablePage):
         self.results_card = Card("📋 生成的食谱")
         self.results_card.setVisible(False)
 
-        self.results_text = QPlainTextEdit()
-        self.results_text.setReadOnly(True)
+        self.results_text = QTextBrowser()
+        self.results_text.setOpenExternalLinks(True)
         self.results_text.setMinimumHeight(500)
         self.results_text.setFont(QFont("Microsoft YaHei UI", 12))
         self.results_text.setStyleSheet(f"""
-            QPlainTextEdit {{
+            QTextBrowser {{
                 background-color: {COLORS["bg_main"]};
                 border: none;
                 border-radius: 8px;
                 padding: 16px;
-                line-height: 1.6;
             }}
         """)
 
@@ -194,13 +201,14 @@ class MealPlanPage(ScrollablePage):
 
         if not config.LLM_API_KEY:
             QMessageBox.warning(
-                self, "配置错误",
+                self,
+                "配置错误",
                 "未配置 LLM API Key\n\n"
                 "请设置环境变量：\n"
                 "LOSS_LLM_API_KEY=your-api-key\n\n"
                 "可选配置：\n"
                 "LOSS_LLM_BASE_URL=https://api.openai.com/v1\n"
-                "LOSS_LLM_MODEL=gpt-3.5-turbo"
+                "LOSS_LLM_MODEL=gpt-3.5-turbo",
             )
             return
 
@@ -226,14 +234,95 @@ class MealPlanPage(ScrollablePage):
         self.worker.error.connect(self.on_generate_error)
         self.worker.start()
 
-    def on_generate_finished(self, result: str):
+    def on_generate_finished(self, response):
         """生成完成"""
         self.loading_bar.setVisible(False)
         self.generate_btn.setEnabled(True)
         self.generate_btn.setText("🍽️ 生成食谱")
 
         self.results_card.setVisible(True)
-        self.results_text.setPlainText(result)
+        # MealPlanResponse 是 Pydantic 模型，使用 .plan 属性访问
+        # 保存原始 Markdown 文本用于复制
+        self._raw_plan = response.plan
+        # 使用 Markdown 渲染
+        html_content = self._markdown_to_html(response.plan)
+        self.results_text.setHtml(html_content)
+
+    def _markdown_to_html(self, markdown_text: str) -> str:
+        """将 Markdown 转换为 HTML"""
+        # 简单的 Markdown 转 HTML 实现
+        import re
+
+        lines = markdown_text.split("\n")
+        html_lines = []
+        in_list = False
+
+        for line in lines:
+            # 处理标题
+            if line.startswith("### "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(
+                    f'<h3 style="color: {COLORS["primary"]}; margin-top: 16px; margin-bottom: 8px;">{line[4:]}</h3>'
+                )
+            elif line.startswith("## "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(
+                    f'<h2 style="color: {COLORS["primary"]}; margin-top: 20px; margin-bottom: 10px;">{line[3:]}</h2>'
+                )
+            elif line.startswith("# "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(
+                    f'<h1 style="color: {COLORS["primary"]}; margin-top: 24px; margin-bottom: 12px;">{line[2:]}</h1>'
+                )
+            # 处理列表项
+            elif line.strip().startswith("- ") or line.strip().startswith("* "):
+                if not in_list:
+                    html_lines.append('<ul style="margin: 8px 0; padding-left: 20px;">')
+                    in_list = True
+                content = line.strip()[2:]
+                # 处理加粗
+                content = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", content)
+                html_lines.append(f'<li style="margin: 4px 0;">{content}</li>')
+            elif line.strip().startswith(tuple(f"{i}. " for i in range(1, 10))):
+                if not in_list:
+                    html_lines.append('<ol style="margin: 8px 0; padding-left: 20px;">')
+                    in_list = True
+                content = re.sub(r"^\d+\.\s*", "", line.strip())
+                content = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", content)
+                html_lines.append(f'<li style="margin: 4px 0;">{content}</li>')
+            # 处理空行
+            elif not line.strip():
+                if in_list:
+                    html_lines.append(
+                        "</ul>" if html_lines and "<ul" in "".join(html_lines[-5:]) else "</ol>"
+                    )
+                    in_list = False
+                html_lines.append("<br>")
+            # 处理普通段落
+            else:
+                if in_list:
+                    html_lines.append("</ul>" if "<ul" in "".join(html_lines[-5:]) else "</ol>")
+                    in_list = False
+                # 处理加粗
+                content = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+                html_lines.append(f'<p style="margin: 8px 0; line-height: 1.6;">{content}</p>')
+
+        if in_list:
+            html_lines.append("</ul>")
+
+        return f"""
+        <html>
+        <body style="font-family: 'Microsoft YaHei UI', sans-serif; color: {COLORS["text_primary"]}; padding: 8px;">
+        {"".join(html_lines)}
+        </body>
+        </html>
+        """
 
     def on_generate_error(self, error: str):
         """生成出错"""
@@ -247,7 +336,8 @@ class MealPlanPage(ScrollablePage):
         """复制食谱"""
         from PySide6.QtWidgets import QApplication
 
-        text = self.results_text.toPlainText()
+        # 复制原始 Markdown 文本
+        text = getattr(self, "_raw_plan", "") or self.results_text.toPlainText()
         if text:
             QApplication.clipboard().setText(text)
             QMessageBox.information(self, "成功", "食谱已复制到剪贴板")
