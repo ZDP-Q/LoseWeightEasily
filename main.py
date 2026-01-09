@@ -1,7 +1,10 @@
 import json
 import sqlite3
 from pathlib import Path
-from difflib import SequenceMatcher
+import pickle
+import numpy as np
+import faiss
+from sentence_transformers import SentenceTransformer
 
 
 def create_database(db_path="food_data.db"):
@@ -254,127 +257,118 @@ def query_example(db_path="food_data.db"):
     conn.close()
 
 
-# 中英文食物名称映射词典
-FOOD_TRANSLATION = {
-    # 蔬菜类
-    "番茄": "tomato", "西红柿": "tomato", "圣女果": "grape tomato",
-    "豆角": "snap bean", "四季豆": "snap bean", "青豆": "green bean",
-    "胡萝卜": "carrot", "红萝卜": "carrot",
-    "土豆": "potato", "马铃薯": "potato",
-    "玉米": "corn",
-    "黄瓜": "cucumber",
-    "生菜": "lettuce",
-    "菠菜": "spinach",
-    "西兰花": "broccoli",
-    "花椰菜": "cauliflower",
-    "洋葱": "onion",
-    "大蒜": "garlic",
-    
-    # 肉类
-    "牛肉": "beef",
-    "猪肉": "pork",
-    "鸡肉": "chicken",
-    "火腿": "ham",
-    "香肠": "sausage",
-    "热狗": "frankfurter", "热狗肠": "frankfurter",
-    "培根": "bacon",
-    
-    # 豆制品
-    "鹰嘴豆泥": "hummus",
-    "豆腐": "tofu",
-    "豆浆": "soy milk",
-    
-    # 坚果
-    "杏仁": "almond", "扁桃仁": "almond",
-    "核桃": "walnut",
-    "花生": "peanut",
-    "腰果": "cashew",
-    "开心果": "pistachio",
-    
-    # 水果
-    "苹果": "apple",
-    "香蕉": "banana",
-    "橙子": "orange",
-    "葡萄": "grape",
-    "草莓": "strawberry",
-    "蓝莓": "blueberry",
-    
-    # 谷物
-    "米饭": "rice",
-    "面包": "bread",
-    "面条": "noodle",
-    "意大利面": "pasta",
-    "燕麦": "oat",
-    
-    # 乳制品
-    "牛奶": "milk",
-    "酸奶": "yogurt",
-    "奶酪": "cheese",
-    "黄油": "butter",
-}
+# 全局变量：存储模型和索引
+_model = None
+_index = None
+_food_list = None
+_index_file = "food_index.faiss"
+_metadata_file = "food_metadata.pkl"
 
 
-def translate_to_english(chinese_text):
-    """将中文食物名称翻译为英文"""
-    chinese_text = chinese_text.strip().lower()
-    
-    # 直接匹配
-    if chinese_text in FOOD_TRANSLATION:
-        return FOOD_TRANSLATION[chinese_text]
-    
-    # 部分匹配
-    for zh, en in FOOD_TRANSLATION.items():
-        if zh in chinese_text or chinese_text in zh:
-            return en
-    
-    return chinese_text
+def get_embedding_model():
+    """获取或初始化嵌入模型（支持中英文）"""
+    global _model
+    if _model is None:
+        print("🔄 加载多语言嵌入模型（首次运行会下载模型，需要几分钟）...")
+        try:
+            # 使用支持中英文的多语言模型
+            _model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+            print("✅ 模型加载完成")
+        except Exception as e:
+            print(f"❌ 模型加载失败: {e}")
+            print("💡 提示：请确保网络连接正常，模型会自动从HuggingFace下载")
+            raise
+    return _model
 
 
-def similarity(a, b):
-    """计算两个字符串的相似度"""
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+def build_food_index(db_path="food_data.db", force_rebuild=False):
+    """构建食物名称的FAISS向量索引"""
+    global _index, _food_list
+    
+    # 如果索引已存在且不强制重建，直接加载
+    if not force_rebuild and Path(_index_file).exists() and Path(_metadata_file).exists():
+        print("📂 加载已有的向量索引...")
+        _index = faiss.read_index(_index_file)
+        with open(_metadata_file, 'rb') as f:
+            _food_list = pickle.load(f)
+        print(f"✅ 索引加载完成，包含 {len(_food_list)} 个食物")
+        return
+    
+    print("🔨 构建食物向量索引...")
+    
+    # 从数据库获取所有食物
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT fdc_id, description, food_category FROM foods")
+    foods = cursor.fetchall()
+    conn.close()
+    
+    # 准备文本和元数据
+    food_texts = []
+    _food_list = []
+    
+    for fdc_id, description, category in foods:
+        # 组合描述和分类作为搜索文本
+        text = f"{description} {category or ''}"
+        food_texts.append(text)
+        _food_list.append({
+            'fdc_id': fdc_id,
+            'description': description,
+            'category': category
+        })
+    
+    # 获取嵌入模型
+    model = get_embedding_model()
+    
+    # 生成向量
+    print(f"🔄 为 {len(food_texts)} 个食物生成向量...")
+    embeddings = model.encode(food_texts, show_progress_bar=True, convert_to_numpy=True)
+    
+    # 标准化向量（用于余弦相似度）
+    faiss.normalize_L2(embeddings)
+    
+    # 创建FAISS索引
+    dimension = embeddings.shape[1]
+    _index = faiss.IndexFlatIP(dimension)  # 使用内积（余弦相似度）
+    _index.add(embeddings)
+    
+    # 保存索引和元数据
+    faiss.write_index(_index, _index_file)
+    with open(_metadata_file, 'wb') as f:
+        pickle.dump(_food_list, f)
+    
+    print(f"✅ 向量索引构建完成并已保存")
 
 
 def search_food_by_name(db_path, search_term, limit=10):
-    """根据名称搜索食物（支持模糊搜索）"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    """使用FAISS向量搜索食物（支持中英文语义搜索）"""
+    global _index, _food_list
     
-    # 如果是中文，先翻译
-    english_term = translate_to_english(search_term)
+    # 确保索引已构建
+    if _index is None or _food_list is None:
+        build_food_index(db_path)
     
-    # 搜索食物
-    cursor.execute("""
-        SELECT fdc_id, description, food_category
-        FROM foods
-        WHERE LOWER(description) LIKE ?
-        OR LOWER(food_category) LIKE ?
-        LIMIT ?
-    """, (f"%{english_term}%", f"%{english_term}%", limit * 2))
+    # 获取模型
+    model = get_embedding_model()
     
-    results = cursor.fetchall()
-    conn.close()
+    # 将搜索词转换为向量
+    query_vector = model.encode([search_term], convert_to_numpy=True)
+    faiss.normalize_L2(query_vector)
     
-    # 如果没有结果，尝试模糊匹配
-    if not results and english_term != search_term:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT fdc_id, description, food_category FROM foods")
-        all_foods = cursor.fetchall()
-        conn.close()
-        
-        # 计算相似度并排序
-        scored_results = []
-        for food in all_foods:
-            score = max(
-                similarity(english_term, food[1]),
-                similarity(search_term, food[1])
-            )
-            if score > 0.3:  # 相似度阈值
-                scored_results.append((food, score))
-        
-        scored_results.sort(key=lambda x: x[1], reverse=True)
-        results = [item[0] for item in scored_results[:limit]]
+    # 搜索最相似的食物
+    k = min(limit * 2, len(_food_list))  # 多搜索一些以便过滤
+    distances, indices = _index.search(query_vector, k)
+    
+    # 准备结果
+    results = []
+    for idx, distance in zip(indices[0], distances[0]):
+        if distance > 0.3:  # 相似度阈值（余弦相似度）
+            food = _food_list[idx]
+            results.append((
+                food['fdc_id'],
+                food['description'],
+                food['category']
+            ))
     
     return results[:limit]
 
@@ -504,6 +498,9 @@ def main():
         print("首次运行，正在导入数据...")
         parse_json_to_sqlite(json_file, db_path)
         print("\n数据导入完成！\n")
+    
+    # 构建或加载向量索引
+    build_food_index(db_path)
     
     # 启动交互式查询
     interactive_query(db_path)
