@@ -6,15 +6,15 @@ LossWeightEasily - 食物卡路里查询系统
 """
 
 from .database import DatabaseManager
+from .query import interactive_query, query_food_calories
 from .search import FoodSearchEngine
-from .query import query_food_calories, interactive_query
 
 __version__ = "0.2.0"
 __author__ = "ZDP-Q"
 
 __all__ = [
     "DatabaseManager",
-    "FoodSearchEngine", 
+    "FoodSearchEngine",
     "query_food_calories",
     "interactive_query",
 ]
