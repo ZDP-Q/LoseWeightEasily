@@ -34,6 +34,7 @@ dependencies = [
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
     "openai>=1.0.0",
+    "PySide6>=6.6.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ dev = [
 
 [project.scripts]
 loss-weight = "loss_weight.cli:main"
+loss-weight-ui = "loss_weight.ui:main"
 
 [project.urls]
 Homepage = "https://github.com/ZDP-Q/LossWeightEasily"
