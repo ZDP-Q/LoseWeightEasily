@@ -1,70 +1,118 @@
-import pickle
-import faiss
+import json
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from pathlib import Path
+
+import faiss
+from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
 
+from .api import food, meal_plan, user, weight
 from .core.config import get_settings
-from .core.database import init_db
-from .api import bmr, food, meal_plan, weight, user
+from .core.logging import setup_logging
+from .core.security import verify_api_key
 
 settings = get_settings()
+logger = logging.getLogger("loseweight.app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Load models and indices
-    print("正在加载 Embedding 模型和 FAISS 索引...")
+    # Startup: 初始化日志、数据库、模型和索引
+    setup_logging()
+    logger.info("正在加载 Embedding 模型和 FAISS 索引...")
 
     # Initialize DB
+    from .core.database import init_db
+
     init_db()
 
     # Load SentenceTransformer
     app.state.embedding_model = SentenceTransformer(settings.embedding.model)
 
-    # Load FAISS index and metadata
+    # Load FAISS index and metadata (使用 JSON 代替 pickle)
     index_path = settings.index.index_path
     metadata_path = settings.index.metadata_path
 
     if index_path.exists() and metadata_path.exists():
         app.state.food_index = faiss.read_index(str(index_path))
-        with open(metadata_path, "rb") as f:
-            app.state.food_metadata = pickle.load(f)
-        print("FAISS 索引加载成功。")
+        app.state.food_metadata = _load_metadata(metadata_path)
+        logger.info("FAISS 索引加载成功。")
     else:
         app.state.food_index = None
         app.state.food_metadata = None
-        print(
-            f"警告: 找不到索引文件 {index_path} 或 {metadata_path}。搜索功能将不可用。"
+        logger.warning(
+            "找不到索引文件 %s 或 %s。搜索功能将不可用。",
+            index_path,
+            metadata_path,
         )
 
     yield
 
-    # Shutdown: Clean up if necessary
-    print("正在关闭应用...")
+    # Shutdown
+    logger.info("正在关闭应用...")
 
 
-app = FastAPI(
+def _load_metadata(metadata_path: Path) -> list[int]:
+    """安全加载 metadata，优先使用 JSON，兼容旧版 pickle。"""
+    json_path = metadata_path.with_suffix(".json")
+
+    # 优先读 JSON
+    if json_path.exists():
+        with open(json_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    # 兼容旧版 pickle（加日志警告）
+    import pickle  # noqa: S403
+
+    logger.warning(
+        "使用 pickle 加载 metadata (%s)，建议迁移到 JSON 格式。", metadata_path
+    )
+    with open(metadata_path, "rb") as f:
+        data = pickle.load(f)  # noqa: S301
+
+    # 自动创建 JSON 副本以供下次使用
+    try:
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        logger.info("已自动将 metadata 转换为 JSON 格式: %s", json_path)
+    except Exception:
+        logger.warning("自动转换 JSON 失败，将在下次启动时重试。")
+
+    return data
+
+
+fastapi_server = FastAPI(
     title="LoseWeightEasily API",
     description="重构后的减肥助手后端接口",
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
+    dependencies=[Depends(verify_api_key)],
+)
+
+# CORS 中间件配置（从配置文件读取允许的源）
+fastapi_server.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.security.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include Routers
-app.include_router(bmr.router)
-app.include_router(food.router)
-app.include_router(meal_plan.router)
-app.include_router(weight.router)
-app.include_router(user.router)
+fastapi_server.include_router(food.router)
+fastapi_server.include_router(meal_plan.router)
+fastapi_server.include_router(weight.router)
+fastapi_server.include_router(user.router)
 
 
-@app.get("/health", tags=["health"])
+@fastapi_server.get("/health", tags=["health"])
 def health_check():
-    return {"status": "healthy", "version": "2.0.0"}
+    return {"status": "healthy", "version": "3.0.0"}
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(fastapi_server, host="0.0.0.0", port=8000)

@@ -48,3 +48,11 @@ logging:
   dir: "logs"
   enable_console: true
   enable_file: true
+
+# 安全配置
+security:
+  # API Key（留空则跳过认证，适用于本地开发）
+  api_key: ""
+  # 允许的 CORS 源列表（生产环境请填写实际前端域名）
+  cors_origins:
+    - "*"

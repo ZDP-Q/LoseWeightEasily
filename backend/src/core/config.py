@@ -71,6 +71,11 @@ class LLMSettings(BaseModel):
     model: str = Field(default="gpt-4o-mini")
 
 
+class SecuritySettings(BaseModel):
+    api_key: str = Field(default="")
+    cors_origins: list[str] = Field(default=["*"])
+
+
 class LoggingSettings(BaseModel):
     mode: Literal["dev", "release"] = Field(default="dev")
     level: str = Field(default="DEBUG")
@@ -94,6 +99,7 @@ class Settings(BaseSettings):
     search: SearchSettings = Field(default_factory=SearchSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
 
     @classmethod
     def from_yaml(cls):
