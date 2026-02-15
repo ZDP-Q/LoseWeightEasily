@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  static ThemeData get darkTheme {
+  static ThemeData darkTheme(BuildContext context) {
+    final textTheme = GoogleFonts.notoSansScTextTheme(
+      Theme.of(context).textTheme.apply(
+            bodyColor: AppColors.textPrimary,
+            displayColor: AppColors.textPrimary,
+          ),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
@@ -12,17 +20,16 @@ class AppTheme {
         secondary: AppColors.secondary,
         surface: AppColors.bgCard,
       ),
-      textTheme: const TextTheme(
-        displaySmall: TextStyle(
-          color: AppColors.textPrimary,
-          fontFamily: 'Poppins',
+      textTheme: textTheme.copyWith(
+        displaySmall: textTheme.displaySmall?.copyWith(
           fontWeight: FontWeight.bold,
         ),
-        titleLarge: TextStyle(
-          color: AppColors.textPrimary,
+        titleLarge: textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
         ),
-        bodyMedium: TextStyle(color: AppColors.textSecondary),
+        bodyMedium: textTheme.bodyMedium?.copyWith(
+          color: AppColors.textSecondary,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -32,10 +39,9 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(
+          textStyle: GoogleFonts.notoSansSc(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            fontFamily: 'Poppins',
           ),
         ),
       ),
@@ -43,7 +49,7 @@ class AppTheme {
         backgroundColor: AppColors.bgDark,
         indicatorColor: AppColors.primary.withValues(alpha: 0.2),
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          GoogleFonts.notoSansSc(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ),
     );
