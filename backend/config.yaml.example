@@ -1,0 +1,50 @@
+# LoseWeightEasily 配置文件示例
+# 
+# 使用说明：
+# 1. 复制此文件为 config.yaml
+# 2. 填写你的配置信息
+# 3. 重启应用
+#
+# 配置优先级：环境变量 > config.yaml > 默认值
+
+# LLM API 配置（用于食谱规划功能）
+llm:
+  # API Key（必需）
+  api_key: ""
+  
+  # API 基础地址（可选）
+  base_url: "https://api.openai.com/v1"
+  
+  # 模型名称（可选）
+  model: "gpt-3.5-turbo"
+
+# 数据库配置 (PostgreSQL)
+database:
+  url: "postgresql://postgres:password@localhost:5432/loss_weight"
+
+# FAISS 索引配置 (相对于运行目录，即 backend/)
+index:
+  file: "data/food_index.faiss"
+  metadata: "data/food_metadata.pkl"
+
+# 数据配置
+data:
+  dir: "data"
+  json_file: "FoodData_Central_foundation_food_json_2025-12-18.json"
+
+# 搜索配置
+search:
+  limit: 10
+  threshold: 0.3
+
+# 嵌入模型配置
+embedding:
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
+
+# 日志配置
+logging:
+  mode: "dev"
+  level: "DEBUG"
+  dir: "logs"
+  enable_console: true
+  enable_file: true

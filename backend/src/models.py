@@ -1,0 +1,72 @@
+from __future__ import annotations
+from datetime import datetime
+from typing import Optional, List
+from sqlmodel import SQLModel, Field, Relationship
+
+# ============================================================================
+# Database Models
+# ============================================================================
+
+class FoodBase(SQLModel):
+    fdc_id: int = Field(primary_key=True)
+    food_class: Optional[str] = None
+    description: str
+    data_type: Optional[str] = None
+    ndb_number: Optional[int] = None
+    publication_date: Optional[str] = None
+    food_category: Optional[str] = None
+    scientific_name: Optional[str] = None
+
+class Food(FoodBase, table=True):
+    __tablename__ = "foods"
+    nutrients: List["FoodNutrient"] = Relationship(back_populates="food")
+    portions: List["FoodPortion"] = Relationship(back_populates="food")
+
+class NutrientBase(SQLModel):
+    nutrient_id: int = Field(primary_key=True)
+    nutrient_number: Optional[str] = None
+    nutrient_name: Optional[str] = None
+    unit_name: Optional[str] = None
+    rank: Optional[int] = None
+
+class Nutrient(NutrientBase, table=True):
+    __tablename__ = "nutrients"
+    food_links: List["FoodNutrient"] = Relationship(back_populates="nutrient")
+
+class FoodNutrientBase(SQLModel):
+    fdc_id: int = Field(foreign_key="foods.fdc_id")
+    nutrient_id: int = Field(foreign_key="nutrients.nutrient_id")
+    amount: Optional[float] = None
+    data_points: Optional[int] = None
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+    median_value: Optional[float] = None
+
+class FoodNutrient(FoodNutrientBase, table=True):
+    __tablename__ = "food_nutrients"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    food: Food = Relationship(back_populates="nutrients")
+    nutrient: Nutrient = Relationship(back_populates="food_links")
+
+class FoodPortionBase(SQLModel):
+    id: int = Field(primary_key=True)
+    fdc_id: int = Field(foreign_key="foods.fdc_id")
+    amount: Optional[float] = None
+    measure_unit_name: Optional[str] = None
+    measure_unit_abbreviation: Optional[str] = None
+    gram_weight: Optional[float] = None
+    modifier: Optional[str] = None
+    sequence_number: Optional[int] = None
+
+class FoodPortion(FoodPortionBase, table=True):
+    __tablename__ = "food_portions"
+    food: Food = Relationship(back_populates="portions")
+
+class WeightRecordBase(SQLModel):
+    weight_kg: float
+    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+    notes: Optional[str] = ""
+
+class WeightRecord(WeightRecordBase, table=True):
+    __tablename__ = "weight_records"
+    id: Optional[int] = Field(default=None, primary_key=True)
