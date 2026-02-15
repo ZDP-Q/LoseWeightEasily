@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -18,8 +19,36 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<FoodSearchResult> _results = [];
   bool _isSearching = false;
+  Timer? _debounce;
 
-  void _onSearch(String query) async {
+  static const List<String> _suggestions = [
+    '鸡胸肉',
+    '西兰花',
+    '糙米饭',
+    '鸡蛋',
+    '牛奶',
+    '燕麦',
+    '三文鱼',
+    '红薯',
+  ];
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (query.trim().isNotEmpty) {
+        _performSearch(query.trim());
+      }
+    });
+  }
+
+  void _performSearch(String query) async {
     if (query.isEmpty) return;
     setState(() => _isSearching = true);
     try {
@@ -30,10 +59,11 @@ class _SearchScreenState extends State<SearchScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('搜索失败: $e'), backgroundColor: AppColors.danger),
+        SnackBar(
+            content: Text('搜索失败: $e'), backgroundColor: AppColors.danger),
       );
     } finally {
-      setState(() => _isSearching = false);
+      if (mounted) setState(() => _isSearching = false);
     }
   }
 
@@ -73,37 +103,91 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       child: TextField(
         controller: _searchController,
-        onSubmitted: _onSearch,
+        onChanged: _onSearchChanged,
+        onSubmitted: _performSearch,
         decoration: InputDecoration(
           hintText: '搜索食物热量...',
-          prefixIcon: const Icon(FontAwesomeIcons.magnifyingGlass, size: 18),
+          prefixIcon:
+              const Icon(FontAwesomeIcons.magnifyingGlass, size: 18),
           filled: true,
           fillColor: AppColors.bgCard,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(20),
             borderSide: BorderSide.none,
           ),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () {
-              _searchController.clear();
-              setState(() => _results = []);
-            },
-          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    _debounce?.cancel();
+                    setState(() => _results = []);
+                  },
+                )
+              : null,
         ),
       ),
     ).animate().fadeIn().slideY(begin: -0.2, end: 0);
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(FontAwesomeIcons.bowlFood, size: 64, color: AppColors.textSecondary.withValues(alpha: 0.2)),
-          const SizedBox(height: 16),
-          Text('想吃点什么？', style: TextStyle(color: AppColors.textSecondary, fontSize: 18)),
-        ],
+    final hasInput = _searchController.text.isNotEmpty;
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 60),
+            Icon(
+              hasInput
+                  ? FontAwesomeIcons.magnifyingGlass
+                  : FontAwesomeIcons.bowlFood,
+              size: 64,
+              color: AppColors.textSecondary.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasInput ? '没有找到相关食物' : '想吃点什么？',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 18),
+            ),
+            if (!hasInput) ...[
+              const SizedBox(height: 24),
+              const Text(
+                '热门搜索',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                    fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: _suggestions
+                      .map(
+                        (s) => ActionChip(
+                          label: Text(s),
+                          backgroundColor:
+                              AppColors.primary.withValues(alpha: 0.1),
+                          side: BorderSide.none,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20)),
+                          onPressed: () {
+                            _searchController.text = s;
+                            _performSearch(s);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     ).animate().fadeIn();
   }
@@ -125,10 +209,13 @@ class _SearchScreenState extends State<SearchScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(food.description,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 4),
                       Text(food.category ?? '普通食物',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12)),
                     ],
                   ),
                 ),
@@ -138,10 +225,13 @@ class _SearchScreenState extends State<SearchScreen> {
                     Text(
                       '${food.caloriesPer100g?.toStringAsFixed(0) ?? "?"} kcal',
                       style: const TextStyle(
-                          color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 18),
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18),
                     ),
                     const Text('/ 100g',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 10)),
                   ],
                 ),
               ],
