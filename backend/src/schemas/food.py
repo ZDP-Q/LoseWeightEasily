@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
+
 class FoodSearchResult(BaseModel):
     fdc_id: int
     description: str

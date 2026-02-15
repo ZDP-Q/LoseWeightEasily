@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/food.dart';
+import '../models/user.dart';
 
 class ApiService {
   static const String baseUrl = 'http://10.0.2.2:8000'; // Android Emulator default
@@ -79,5 +80,41 @@ class ApiService {
       return json.decode(utf8.decode(response.bodyBytes));
     }
     throw Exception('生成食谱失败');
+  }
+
+  Future<UserProfile?> getUser() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/user'));
+      if (response.statusCode == 200) {
+        return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<UserProfile> createUser(UserProfile user) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/user'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(user.toJson()),
+    );
+    if (response.statusCode == 200) {
+      return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+    }
+    throw Exception('创建用户信息失败');
+  }
+
+  Future<UserProfile> updateUser(UserProfile user) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/user'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(user.toJson()),
+    );
+    if (response.statusCode == 200) {
+      return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+    }
+    throw Exception('更新用户信息失败');
   }
 }

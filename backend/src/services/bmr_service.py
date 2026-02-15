@@ -1,5 +1,6 @@
 from typing import Dict
 
+
 class BMRService:
     @staticmethod
     def calculate_bmr(weight: float, height: float, age: int, gender: str) -> float:

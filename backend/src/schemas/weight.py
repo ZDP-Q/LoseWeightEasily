@@ -2,9 +2,11 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
+
 class WeightCreate(BaseModel):
     weight_kg: float
     notes: Optional[str] = ""
+
 
 class WeightRead(BaseModel):
     id: int

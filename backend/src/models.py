@@ -7,6 +7,7 @@ from sqlmodel import SQLModel, Field, Relationship
 # Database Models
 # ============================================================================
 
+
 class FoodBase(SQLModel):
     fdc_id: int = Field(primary_key=True)
     food_class: Optional[str] = None
@@ -17,10 +18,12 @@ class FoodBase(SQLModel):
     food_category: Optional[str] = None
     scientific_name: Optional[str] = None
 
+
 class Food(FoodBase, table=True):
     __tablename__ = "foods"
     nutrients: List["FoodNutrient"] = Relationship(back_populates="food")
     portions: List["FoodPortion"] = Relationship(back_populates="food")
+
 
 class NutrientBase(SQLModel):
     nutrient_id: int = Field(primary_key=True)
@@ -29,9 +32,11 @@ class NutrientBase(SQLModel):
     unit_name: Optional[str] = None
     rank: Optional[int] = None
 
+
 class Nutrient(NutrientBase, table=True):
     __tablename__ = "nutrients"
     food_links: List["FoodNutrient"] = Relationship(back_populates="nutrient")
+
 
 class FoodNutrientBase(SQLModel):
     fdc_id: int = Field(foreign_key="foods.fdc_id")
@@ -42,11 +47,13 @@ class FoodNutrientBase(SQLModel):
     max_value: Optional[float] = None
     median_value: Optional[float] = None
 
+
 class FoodNutrient(FoodNutrientBase, table=True):
     __tablename__ = "food_nutrients"
     id: Optional[int] = Field(default=None, primary_key=True)
     food: Food = Relationship(back_populates="nutrients")
     nutrient: Nutrient = Relationship(back_populates="food_links")
+
 
 class FoodPortionBase(SQLModel):
     id: int = Field(primary_key=True)
@@ -58,15 +65,35 @@ class FoodPortionBase(SQLModel):
     modifier: Optional[str] = None
     sequence_number: Optional[int] = None
 
+
 class FoodPortion(FoodPortionBase, table=True):
     __tablename__ = "food_portions"
     food: Food = Relationship(back_populates="portions")
+
 
 class WeightRecordBase(SQLModel):
     weight_kg: float
     recorded_at: datetime = Field(default_factory=datetime.utcnow)
     notes: Optional[str] = ""
 
+
 class WeightRecord(WeightRecordBase, table=True):
     __tablename__ = "weight_records"
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+
+class UserBase(SQLModel):
+    name: str
+    age: int
+    gender: str  # "Male", "Female", "Other"
+    height_cm: float
+    initial_weight_kg: float
+    target_weight_kg: float
+    bmr: Optional[float] = None
+    daily_calorie_goal: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class User(UserBase, table=True):
+    __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)

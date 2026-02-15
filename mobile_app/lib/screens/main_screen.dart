@@ -6,6 +6,7 @@ import 'search_screen.dart';
 import 'bmr_screen.dart';
 import 'weight_screen.dart';
 import 'meal_plan_screen.dart';
+import 'user_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -23,6 +24,7 @@ class _MainScreenState extends State<MainScreen> {
     const BmrScreen(),
     const WeightScreen(),
     const MealPlanScreen(),
+    const UserScreen(),
   ];
 
   @override
@@ -43,7 +45,7 @@ class _MainScreenState extends State<MainScreen> {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.1),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
               width: 0.5,
             ),
           ),
@@ -82,6 +84,11 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(FontAwesomeIcons.utensils, size: 20),
               selectedIcon: Icon(FontAwesomeIcons.utensils, size: 20, color: Colors.white),
               label: '开食谱',
+            ),
+            NavigationDestination(
+              icon: Icon(FontAwesomeIcons.user, size: 20),
+              selectedIcon: Icon(FontAwesomeIcons.user, size: 20, color: Colors.white),
+              label: '我的',
             ),
           ],
         ),

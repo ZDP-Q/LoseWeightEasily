@@ -131,7 +131,7 @@ class _BmrScreenState extends State<BmrScreen> {
             min: min,
             max: max,
             activeColor: AppColors.primary,
-            inactiveColor: AppColors.primary.withOpacity(0.1),
+            inactiveColor: AppColors.primary.withValues(alpha: 0.1),
             onChanged: onChanged,
           ),
         ],
@@ -147,7 +147,7 @@ class _BmrScreenState extends State<BmrScreen> {
         Text('您的 BMR', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         GlassCard(
-          color: AppColors.primary.withOpacity(0.1),
+          color: AppColors.primary.withValues(alpha: 0.1),
           child: Center(
             child: Text(
               '${(_result!['bmr'] as double).toStringAsFixed(0)} kcal',
@@ -210,10 +210,10 @@ class _GenderCard extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withOpacity(0.1) : AppColors.bgCard.withOpacity(0.4),
+          color: isSelected ? activeColor.withValues(alpha: 0.1) : AppColors.bgCard.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? activeColor : Colors.white.withOpacity(0.05),
+            color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.05),
             width: 2,
           ),
         ),

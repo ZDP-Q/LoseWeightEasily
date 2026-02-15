@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from ..models import WeightRecord
 from ..schemas.weight import WeightCreate
 
+
 class WeightService:
     def __init__(self, session: Session):
         self.session = session
@@ -15,5 +16,7 @@ class WeightService:
         return db_record
 
     def get_records(self, limit: int = 100) -> List[WeightRecord]:
-        statement = select(WeightRecord).order_by(WeightRecord.recorded_at.desc()).limit(limit)
+        statement = (
+            select(WeightRecord).order_by(WeightRecord.recorded_at.desc()).limit(limit)
+        )
         return self.session.exec(statement).all()
