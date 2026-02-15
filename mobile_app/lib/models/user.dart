@@ -2,7 +2,7 @@ class UserProfile {
   final int? id;
   final String name;
   final int age;
-  final String gender;
+  final String gender; // "male" or "female" — 统一使用小写
   final double heightCm;
   final double initialWeightKg;
   final double targetWeightKg;
@@ -28,13 +28,15 @@ class UserProfile {
       id: json['id'],
       name: json['name'],
       age: json['age'],
-      gender: json['gender'],
-      heightCm: json['height_cm'].toDouble(),
-      initialWeightKg: json['initial_weight_kg'].toDouble(),
-      targetWeightKg: json['target_weight_kg'].toDouble(),
-      bmr: json['bmr']?.toDouble(),
-      dailyCalorieGoal: json['daily_calorie_goal']?.toDouble(),
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
+      gender: (json['gender'] as String).toLowerCase(),
+      heightCm: (json['height_cm'] as num).toDouble(),
+      initialWeightKg: (json['initial_weight_kg'] as num).toDouble(),
+      targetWeightKg: (json['target_weight_kg'] as num).toDouble(),
+      bmr: (json['bmr'] as num?)?.toDouble(),
+      dailyCalorieGoal: (json['daily_calorie_goal'] as num?)?.toDouble(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : null,
     );
   }
 
@@ -49,5 +51,32 @@ class UserProfile {
       'bmr': bmr,
       'daily_calorie_goal': dailyCalorieGoal,
     };
+  }
+
+  /// 创建修改后的副本
+  UserProfile copyWith({
+    int? id,
+    String? name,
+    int? age,
+    String? gender,
+    double? heightCm,
+    double? initialWeightKg,
+    double? targetWeightKg,
+    double? bmr,
+    double? dailyCalorieGoal,
+    DateTime? createdAt,
+  }) {
+    return UserProfile(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      heightCm: heightCm ?? this.heightCm,
+      initialWeightKg: initialWeightKg ?? this.initialWeightKg,
+      targetWeightKg: targetWeightKg ?? this.targetWeightKg,
+      bmr: bmr ?? this.bmr,
+      dailyCalorieGoal: dailyCalorieGoal ?? this.dailyCalorieGoal,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 }

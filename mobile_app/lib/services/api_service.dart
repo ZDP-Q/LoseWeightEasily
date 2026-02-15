@@ -1,120 +1,215 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/food.dart';
 import '../models/user.dart';
+import '../models/weight_record.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8000'; // Android Emulator default
+  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const Duration _timeout = Duration(seconds: 10);
 
+  // ---------------------------------------------------------------------------
+  // Food Search
+  // ---------------------------------------------------------------------------
   Future<List<FoodSearchResult>> searchFood(String query) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/search?query=${Uri.encodeComponent(query)}'),
-      );
-      
+      final response = await http
+          .get(Uri.parse('$baseUrl/search?query=${Uri.encodeComponent(query)}'))
+          .timeout(_timeout);
+
       if (response.statusCode == 200) {
-        List data = json.decode(utf8.decode(response.bodyBytes));
-        return data.map((json) => FoodSearchResult.fromJson(json)).toList();
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        return data.map((j) => FoodSearchResult.fromJson(j)).toList();
       }
-      return [];
-    } catch (e) {
-      throw Exception('网络连接失败: $e');
+      throw ApiException('搜索失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
   }
 
-  Future<Map<String, dynamic>> calculateBmr(double weight, double height, int age, String gender) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/calculate/bmr'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'weight_kg': weight,
-        'height_cm': height,
-        'age': age,
-        'gender': gender,
-      }),
-    );
-    if (response.statusCode == 200) {
-      return json.decode(utf8.decode(response.bodyBytes));
+  // ---------------------------------------------------------------------------
+  // BMR Calculation
+  // ---------------------------------------------------------------------------
+  Future<Map<String, dynamic>> calculateBmr(
+      double weight, double height, int age, String gender) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/calculate/bmr'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'weight_kg': weight,
+              'height_cm': height,
+              'age': age,
+              'gender': gender,
+            }),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return json.decode(utf8.decode(response.bodyBytes));
+      }
+      throw ApiException('计算失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('计算失败');
   }
 
-  Future<List<dynamic>> getWeightHistory({int limit = 100}) async {
-    final response = await http.get(Uri.parse('$baseUrl/weight?limit=$limit'));
-    if (response.statusCode == 200) {
-      return json.decode(utf8.decode(response.bodyBytes));
+  // ---------------------------------------------------------------------------
+  // Weight Records
+  // ---------------------------------------------------------------------------
+  Future<List<WeightRecord>> getWeightHistory({int limit = 100}) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/weight?limit=$limit'))
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        return data.map((j) => WeightRecord.fromJson(j)).toList();
+      }
+      throw ApiException('获取体重历史失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('获取体重历史失败');
   }
 
-  Future<Map<String, dynamic>> addWeight(double weight, String? notes) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/weight'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'weight_kg': weight,
-        'notes': notes,
-      }),
-    );
-    if (response.statusCode == 200) {
-      return json.decode(utf8.decode(response.bodyBytes));
+  Future<WeightRecord> addWeight(double weight, String? notes) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/weight'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'weight_kg': weight,
+              'notes': notes ?? '',
+            }),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return WeightRecord.fromJson(
+            json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('记录体重失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('记录体重失败');
   }
 
+  // ---------------------------------------------------------------------------
+  // Meal Plan
+  // ---------------------------------------------------------------------------
   Future<Map<String, dynamic>> generateMealPlan({
     required List<String> ingredients,
     String? preferences,
     String? restrictions,
+    double? calorieGoal,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/meal-plan'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'ingredients': ingredients,
-        'preferences': preferences,
-        'dietary_restrictions': restrictions,
-      }),
-    );
-    if (response.statusCode == 200) {
-      return json.decode(utf8.decode(response.bodyBytes));
+    try {
+      // 构建偏好字符串，将热量目标整合进去
+      String fullPreferences = preferences ?? '';
+      if (calorieGoal != null) {
+        final calorieInfo = '每日热量目标: ${calorieGoal.toStringAsFixed(0)} kcal';
+        fullPreferences =
+            fullPreferences.isEmpty ? calorieInfo : '$fullPreferences, $calorieInfo';
+      }
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/meal-plan'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'ingredients': ingredients,
+              'preferences': fullPreferences,
+              'dietary_restrictions': restrictions ?? '',
+            }),
+          )
+          .timeout(const Duration(seconds: 60)); // AI 生成需要更长超时
+      if (response.statusCode == 200) {
+        return json.decode(utf8.decode(response.bodyBytes));
+      }
+      throw ApiException('生成食谱失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('AI 生成超时，请稍后再试');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('生成食谱失败');
   }
 
+  // ---------------------------------------------------------------------------
+  // User
+  // ---------------------------------------------------------------------------
   Future<UserProfile?> getUser() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/user'));
+      final response =
+          await http.get(Uri.parse('$baseUrl/user')).timeout(_timeout);
       if (response.statusCode == 200) {
-        return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+        return UserProfile.fromJson(
+            json.decode(utf8.decode(response.bodyBytes)));
       }
-      return null;
-    } catch (e) {
-      return null;
+      return null; // 404 = 用户不存在
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
   }
 
   Future<UserProfile> createUser(UserProfile user) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/user'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(user.toJson()),
-    );
-    if (response.statusCode == 200) {
-      return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/user'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(user.toJson()),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return UserProfile.fromJson(
+            json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('创建用户信息失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('创建用户信息失败');
   }
 
   Future<UserProfile> updateUser(UserProfile user) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/user'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(user.toJson()),
-    );
-    if (response.statusCode == 200) {
-      return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+    try {
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/user'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(user.toJson()),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return UserProfile.fromJson(
+            json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('更新用户信息失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
     }
-    throw Exception('更新用户信息失败');
   }
+}
+
+/// 统一的 API 异常类
+class ApiException implements Exception {
+  final String message;
+  const ApiException(this.message);
+
+  @override
+  String toString() => message;
 }
