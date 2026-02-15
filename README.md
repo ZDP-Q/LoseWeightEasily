@@ -1,200 +1,86 @@
 # LoseWeightEasily 🍎
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Flutter Version](https://img.shields.io/badge/flutter-3.11+-blue.svg)](https://flutter.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-一个帮助你轻松减重的智能健康管理工具，提供食物营养查询、体重记录、基础代谢计算和智能食谱规划等功能。
+一个基于 AI 和语义搜索的现代化减重助手。本项目已从传统的桌面端应用重构为高性能的 **Client-Server** 架构，提供基于 FastAPI 的强大后端和基于 Flutter 的精美移动端应用。
 
-## ✨ 特性
+## ✨ 核心特性
 
-- 🔍 **智能食物搜索**：基于 FAISS 语义搜索，支持中英文跨语言查询
-- ⚖️ **体重记录管理**：每日体重打卡，自动统计变化趋势
-- 🔥 **代谢率计算**：计算基础代谢率 (BMR) 和每日总消耗 (TDEE)
-- 🍽️ **智能食谱规划**：根据现有食材生成营养均衡的一日三餐
-- 📊 **详细营养信息**：显示每100克热量和常用份量的热量
-- ⚡ **高性能响应**：向量索引一次构建，后续查询毫秒级响应
+- 🔍 **智能语义搜索**：基于 FAISS 和多语言嵌入模型，支持跨语言（中英）搜索 USDA 食物营养数据。
+- ⚖️ **体重趋势追踪**：可视化记录每日体重变化，生成动态趋势图表。
+- 🔥 **代谢精准计算**：计算 BMR（基础代谢率）和 TDEE（每日总消耗），辅助制定减脂计划。
+- 🍽️ **AI 食谱规划**：集成 OpenAI API，根据现有食材和营养需求智能生成一日三餐建议。
+- 🎨 **现代 UI/UX**：Flutter 移动端采用 Material 3 设计规范、Poppins 字体以及 Glassmorphism（毛玻璃）视觉风格。
+- ⚡ **高性能架构**：FastAPI + SQLModel (PostgreSQL) 后端，支持高并发和高效的向量检索。
+
+## 🏗️ 架构概览
+
+项目采用前后端分离架构：
+- **后端 (Backend)**: 提供 RESTful API，处理数据持久化、语义搜索算法及 AI 逻辑。
+- **移动端 (Mobile App)**: 提供跨平台的用户交互界面，利用 `Provider` 进行响应式状态管理。
+
+## 📁 目录结构
+
+```text
+LoseWeightEasily/
+├── backend/                # FastAPI 后端项目
+│   ├── src/
+│   │   ├── api/            # 路由定义 (BMR, Food, Meal Plan, Weight)
+│   │   ├── core/           # 核心配置与数据库连接
+│   │   ├── models.py       # SQLModel 数据库模型
+│   │   ├── schemas/        # Pydantic 验证架构
+│   │   ├── services/       # 业务逻辑层
+│   │   └── app.py          # 应用入口
+│   ├── data/               # USDA 食物数据集
+│   └── pyproject.toml      # uv 依赖管理
+├── mobile_app/             # Flutter 移动端项目
+│   ├── lib/
+│   │   ├── models/         # 数据模型
+│   │   ├── screens/        # 各功能模块页面
+│   │   ├── services/       # API 请求封装
+│   │   ├── utils/          # 主题与配色常量
+│   │   └── widgets/        # 自定义 UI 组件 (如 GlassCard)
+│   └── pubspec.yaml        # Flutter 依赖管理
+└── GEMINI.md               # AI 开发上下文与指令
+```
 
 ## 🚀 快速开始
 
-### 安装
+### 1. 后端配置 (Backend)
+
+确保已安装 [uv](https://github.com/astral-sh/uv)。
 
 ```bash
-# 克隆项目
-git clone https://github.com/ZDP-Q/LossWeightEasily.git
-cd LossWeightEasily
-
-# 使用 uv 安装依赖
-uv sync
-```
-
-### 配置 LLM API（可选）
-
-食谱规划功能需要配置 LLM API。支持两种配置方式：
-
-**方法 1：使用 config.yaml（推荐）**
-
-1. 复制示例配置文件：
-```bash
+cd backend
+# 复制并配置环境变量/配置文件
 cp config.yaml.example config.yaml
+# 安装依赖并启动服务
+uv run uvicorn src.app:app --reload
 ```
+后端默认运行在 `http://127.0.0.1:8000`。API 文档可通过 `/docs` 访问。
 
-2. 编辑 `config.yaml`，填写你的 API Key：
-```yaml
-llm:
-  api_key: "your-api-key-here"
-  base_url: "https://api.openai.com/v1"  # 可选
-  model: "gpt-3.5-turbo"  # 可选
-```
+### 2. 移动端运行 (Mobile App)
 
-**方法 2：使用环境变量**
+确保已安装 Flutter SDK 3.11.0+。
 
 ```bash
-# PowerShell
-$env:LOSS_LLM_API_KEY="your-api-key"
-$env:LOSS_LLM_BASE_URL="https://api.openai.com/v1"
-$env:LOSS_LLM_MODEL="gpt-3.5-turbo"
+cd mobile_app
+flutter pub get
+flutter run
 ```
+*注意：在 Android 模拟器中运行，请确保 API 基础路径配置为 `http://10.0.2.2:8000`。*
 
-配置优先级：环境变量 > config.yaml > 默认值
+## 🛠️ 技术栈
 
-支持的 LLM 服务：
-- OpenAI (gpt-3.5-turbo, gpt-4)
-- DeepSeek (deepseek-chat)
-- 智谱 AI (glm-4)
-- 通义千问 (qwen-max)
-
-### 使用
-
-#### 图形界面（推荐）
-
-```bash
-uv run loss-weight-ui
-```
-
-提供完整的图形化界面：
-- 📊 仪表盘：查看 BMR、TDEE 和体重统计
-- ⚖️ 体重记录：输入体重，查看趋势曲线
-- 🔍 食物搜索：智能语义搜索食物营养信息
-- 🔥 BMR 计算：计算基础代谢和每日总消耗
-- 🍽️ 食谱规划：AI 生成营养均衡的一日三餐
-- ⚙️ 设置：查看和配置应用参数
-
-#### 命令行界面
-
-**交互式查询**
-
-```bash
-uv run loss-weight
-# 或
-uv run python -m loss_weight
-```
-
-然后输入食物名称即可查询：
-- 输入：`番茄` 或 `tomato`
-- 输入：`牛肉` 或 `beef`
-- 输入：`q` 退出
-
-#### 命令行搜索
-
-```bash
-# 搜索特定食物
-uv run loss-weight search "番茄"
-
-# 限制返回数量
-uv run loss-weight search "beef" -n 5
-```
-
-#### 编程方式使用
-
-```python
-from loss_weight import query_food_calories, FoodSearchEngine
-
-# 简单查询
-query_food_calories("番茄")
-
-# 使用搜索引擎获取详细信息
-engine = FoodSearchEngine()
-engine.ensure_index()
-
-results = engine.search_with_details("tomato", limit=5)
-for food in results:
-    print(f"{food['name']}: {food['calories_per_100g']} kcal/100g")
-```
-
-## 📁 项目结构
-
-```
-LossWeightEasily/
-├── src/
-│   └── loss_weight/          # 主要源代码
-│       ├── __init__.py       # 包初始化
-│       ├── models.py         # Pydantic 数据模型
-│       ├── container.py      # 依赖注入容器
-│       ├── config.py         # Pydantic Settings 配置
-│       ├── cli.py            # 命令行接口
-│       ├── database.py       # 数据库操作
-│       ├── search.py         # FAISS 搜索引擎
-│       ├── query.py          # 查询接口
-│       ├── bmr.py            # BMR/TDEE 计算
-│       ├── weight_tracker.py # 体重记录
-│       ├── meal_planner.py   # AI 食谱规划
-│       └── ui/               # PySide6 GUI
-│           ├── __init__.py   # UI 入口
-│           ├── main_window.py # 主窗口
-│           ├── styles.py     # 样式常量
-│           └── pages/        # UI 页面
-├── tests/                    # 测试代码
-├── docs/                     # 文档
-├── data/                     # 数据文件
-├── pyproject.toml            # 项目配置
-└── README.md                 # 项目说明
-```
-
-## 🏗️ 架构特性
-
-- **Pydantic v2 数据模型**: 所有数据结构使用 Pydantic 模型确保类型安全
-- **依赖注入容器**: 集中管理服务实例，支持懒加载
-- **Lazy Import**: 延迟导入重型依赖（FAISS、sentence-transformers）加快启动
-- **上下文管理器**: 数据库连接自动管理，避免资源泄漏
-
-## 🛠️ 命令行工具
-
-```bash
-# 初始化数据库和索引
-uv run loss-weight init
-
-# 交互式查询
-uv run loss-weight interactive
-
-# 搜索食物
-uv run loss-weight search "关键词"
-
-# 查看数据库统计
-uv run loss-weight stats
-
-# 重建搜索索引
-uv run loss-weight rebuild-index
-```
-
-## 🔧 技术栈
-
-- **Python 3.10+**
-- **Pydantic v2** - 数据验证和类型安全
-- **pydantic-settings** - 配置管理
-- **FAISS** - Facebook AI 的高效相似性搜索库
-- **Sentence-Transformers** - 多语言语义嵌入模型
-- **SQLite** - 轻量级本地数据库
-- **PySide6** - 跨平台 GUI 框架
-- **OpenAI API** - LLM 食谱规划
-- **uv** - 现代 Python 包管理器
+- **后端**: [FastAPI](https://fastapi.tiangolo.com/), [SQLModel](https://sqlmodel.tiangolo.com/), [PostgreSQL](https://www.postgresql.org/), [FAISS](https://github.com/facebookresearch/faiss), [Sentence-Transformers](https://sbert.net/)
+- **前端**: [Flutter](https://flutter.dev/), [Provider](https://pub.dev/packages/provider), [fl_chart](https://pub.dev/packages/fl_chart)
+- **工具**: [uv](https://github.com/astral-sh/uv), [Ruff](https://github.com/astral-sh/ruff)
 
 ## 📊 数据来源
 
-食物营养数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/) Foundation Foods 数据集。
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
+食物营养数据基于 [USDA FoodData Central](https://fdc.nal.usda.gov/) 2025-12-18 版本。
 
 ## 📄 许可证
 
