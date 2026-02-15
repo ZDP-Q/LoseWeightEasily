@@ -51,4 +51,26 @@ class WeightProvider extends ChangeNotifier {
       rethrow;
     }
   }
+
+  Future<void> updateRecord(int id, double? weight, String? notes) async {
+    try {
+      await _api.updateWeight(id, weight, notes);
+      await loadHistory();
+    } catch (e) {
+      _error = '更新失败: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> deleteRecord(int id) async {
+    try {
+      await _api.deleteWeight(id);
+      await loadHistory();
+    } catch (e) {
+      _error = '删除失败: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
 }
