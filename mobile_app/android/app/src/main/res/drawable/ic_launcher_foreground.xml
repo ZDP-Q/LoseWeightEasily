@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- 苹果主体曲线 -->
+    <path
+        android:pathData="M100,160C130,160 160,140 160,100C160,60 135,50 100,50C65,50 40,60 40,100C40,140 70,160 100,160Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="100"
+                android:startY="50"
+                android:endX="100"
+                android:endY="160"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF3F51B5"/>
+                <item android:offset="1" android:color="#FF1A237E"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 祖母绿叶子 -->
+    <path
+        android:pathData="M105,50C105,50 115,25 140,20C140,20 135,45 110,55"
+        android:fillColor="#FF50C878"/>
+</vector>
