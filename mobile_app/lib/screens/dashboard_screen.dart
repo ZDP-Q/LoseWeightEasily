@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
+import '../providers/navigation_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/weight_provider.dart';
 import '../utils/app_colors.dart';
 import '../widgets/glass_card.dart';
-import 'main_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
-  /// 跳转到指定 Tab（通过 MainScreen 的回调）
+  /// 跳转到指定 Tab（通过 NavigationProvider）
   void _navigateToTab(BuildContext context, int tabIndex) {
-    context.findAncestorStateOfType<MainScreenState>()?.switchTab(tabIndex);
+    context.read<NavigationProvider>().switchTab(tabIndex);
   }
 
   @override

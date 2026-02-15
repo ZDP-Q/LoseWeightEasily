@@ -312,6 +312,38 @@ class WeightScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary),
             ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  _showEditDialog(context, record);
+                } else if (value == 'delete') {
+                  _confirmDelete(context, record);
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 18),
+                      SizedBox(width: 8),
+                      Text('编辑'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: AppColors.danger, size: 18),
+                      SizedBox(width: 8),
+                      Text('删除', style: TextStyle(color: AppColors.danger)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -319,20 +351,32 @@ class WeightScreen extends StatelessWidget {
   }
 
   void _showAddDialog(BuildContext context) {
-    final weightController = TextEditingController();
-    final notesController = TextEditingController();
+    _showRecordDialog(context, title: '记录今日体重');
+  }
+
+  void _showEditDialog(BuildContext context, WeightRecord record) {
+    _showRecordDialog(context, title: '编辑体重记录', record: record);
+  }
+
+  void _showRecordDialog(BuildContext context, {required String title, WeightRecord? record}) {
+    final weightController = TextEditingController(
+      text: record?.weightKg.toString() ?? '',
+    );
+    final notesController = TextEditingController(
+      text: record?.notes ?? '',
+    );
+    final isEdit = record != null;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('记录今日体重'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: weightController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 suffixText: 'kg',
                 hintText: '请输入体重',
@@ -368,16 +412,74 @@ class WeightScreen extends StatelessWidget {
               }
               Navigator.pop(ctx);
               try {
-                await context.read<WeightProvider>().addRecord(
-                      val,
-                      notes: notesController.text.trim().isNotEmpty
-                          ? notesController.text.trim()
-                          : null,
-                    );
+                if (isEdit) {
+                  await context.read<WeightProvider>().updateRecord(
+                        record.id,
+                        val,
+                        notesController.text.trim().isNotEmpty
+                            ? notesController.text.trim()
+                            : null, // If empty string, pass null to clear? Or empty string? Backend expects string.
+                      );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('更新成功'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } else {
+                  await context.read<WeightProvider>().addRecord(
+                        val,
+                        notes: notesController.text.trim().isNotEmpty
+                            ? notesController.text.trim()
+                            : null,
+                      );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('记录成功 🎉'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('操作失败: $e'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(minimumSize: const Size(80, 40)),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WeightRecord record) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除 ${DateFormat('M月d日').format(record.recordedAt)} 的体重记录吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await context.read<WeightProvider>().deleteRecord(record.id);
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('体重记录成功 🎉'),
+                    content: Text('已删除'),
                     backgroundColor: AppColors.success,
                   ),
                 );
@@ -385,15 +487,13 @@ class WeightScreen extends StatelessWidget {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('记录失败: $e'),
+                    content: Text('删除失败: $e'),
                     backgroundColor: AppColors.danger,
                   ),
                 );
               }
             },
-            style: ElevatedButton.styleFrom(
-                minimumSize: const Size(80, 40)),
-            child: const Text('保存'),
+            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),

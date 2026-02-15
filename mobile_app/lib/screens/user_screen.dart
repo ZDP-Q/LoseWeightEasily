@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../services/api_service.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/bmr_calculator.dart';
 import '../widgets/glass_card.dart';
 import 'bmr_screen.dart';
 
@@ -58,19 +58,15 @@ class _UserScreenState extends State<UserScreen> {
     final height = double.parse(_heightController.text);
     final age = int.parse(_ageController.text);
 
-    // 在 await 之前捕获引用
-    final api = context.read<ApiService>();
     final userProvider = context.read<UserProvider>();
 
-    // 调用后端计算 BMR，而非前端手动计算
-    double? bmr;
-    try {
-      final result = await api.calculateBmr(weight, height, age, _gender);
-      bmr = (result['bmr'] as num).toDouble();
-    } catch (_) {
-      // BMR 计算失败时仍允许保存，只是 BMR 为 null
-
-    }
+    // 本地计算 BMR，无需网络请求
+    final bmr = BmrCalculator.calculateBmr(
+      weight: weight,
+      height: height,
+      age: age,
+      gender: _gender,
+    );
 
     final newUser = UserProfile(
       name: _nameController.text.trim(),
@@ -82,7 +78,7 @@ class _UserScreenState extends State<UserScreen> {
       bmr: bmr,
       dailyCalorieGoal: _calorieGoalController.text.isNotEmpty
           ? double.parse(_calorieGoalController.text)
-          : (bmr != null ? bmr * 1.2 : null),
+          : bmr * 1.2,
     );
 
     try {
@@ -347,9 +343,23 @@ class _UserScreenState extends State<UserScreen> {
         }
         if (isNumber &&
             value != null &&
-            value.isNotEmpty &&
-            double.tryParse(value) == null) {
-          return '请输入有效的数字';
+            value.isNotEmpty) {
+          final num = double.tryParse(value);
+          if (num == null) return '请输入有效的数字';
+
+          // 数值范围校验
+          if (label.contains('年龄') && (num < 1 || num > 150)) {
+            return '年龄应在 1~150 之间';
+          }
+          if (label.contains('身高') && (num < 50 || num > 300)) {
+            return '身高应在 50~300 cm 之间';
+          }
+          if (label.contains('体重') && (num < 10 || num > 500)) {
+            return '体重应在 10~500 kg 之间';
+          }
+          if (label.contains('热量') && (num < 500 || num > 10000)) {
+            return '热量目标应在 500~10000 kcal 之间';
+          }
         }
         return null;
       },

@@ -1,51 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:animations/animations.dart';
+import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../providers/navigation_provider.dart';
 import 'dashboard_screen.dart';
 import 'search_screen.dart';
 import 'weight_screen.dart';
 import 'meal_plan_screen.dart';
 import 'user_screen.dart';
 
-class MainScreen extends StatefulWidget {
+class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
 
-  @override
-  State<MainScreen> createState() => MainScreenState();
-}
-
-/// 公开 State 类以供 DashboardScreen 通过 findAncestorStateOfType 访问
-class MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const SearchScreen(),
-    const WeightScreen(),
-    const MealPlanScreen(),
-    const UserScreen(),
+  static const List<Widget> _screens = [
+    DashboardScreen(),
+    SearchScreen(),
+    WeightScreen(),
+    MealPlanScreen(),
+    UserScreen(),
   ];
-
-  /// 供子页面调用以切换 Tab
-  void switchTab(int index) {
-    if (index >= 0 && index < _screens.length) {
-      setState(() => _selectedIndex = index);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
+    final navProvider = context.watch<NavigationProvider>();
+    final selectedIndex = navProvider.selectedIndex;
+
     return Scaffold(
-      body: PageTransitionSwitcher(
-        duration: const Duration(milliseconds: 400),
-        transitionBuilder: (child, primaryAnimation, secondaryAnimation) {
-          return FadeThroughTransition(
-            animation: primaryAnimation,
-            secondaryAnimation: secondaryAnimation,
-            child: child,
-          );
-        },
-        child: _screens[_selectedIndex],
+      body: IndexedStack(
+        index: selectedIndex,
+        children: _screens,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -59,12 +41,8 @@ class MainScreenState extends State<MainScreen> {
         child: NavigationBar(
           height: 65,
           elevation: 0,
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          selectedIndex: selectedIndex,
+          onDestinationSelected: navProvider.switchTab,
           destinations: const [
             NavigationDestination(
               icon: Icon(FontAwesomeIcons.house, size: 20),

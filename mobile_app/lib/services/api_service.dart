@@ -6,8 +6,18 @@ import '../models/user.dart';
 import '../models/weight_record.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8000',
+  );
   static const Duration _timeout = Duration(seconds: 10);
+
+  static const String apiKey = String.fromEnvironment('API_KEY');
+
+  Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (apiKey.isNotEmpty) 'X-API-Key': apiKey,
+      };
 
   // ---------------------------------------------------------------------------
   // Food Search
@@ -15,7 +25,10 @@ class ApiService {
   Future<List<FoodSearchResult>> searchFood(String query) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/search?query=${Uri.encodeComponent(query)}'))
+          .get(
+            Uri.parse('$baseUrl/search?query=${Uri.encodeComponent(query)}'),
+            headers: _headers,
+          )
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -39,7 +52,7 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/calculate/bmr'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _headers,
             body: json.encode({
               'weight_kg': weight,
               'height_cm': height,
@@ -65,7 +78,7 @@ class ApiService {
   Future<List<WeightRecord>> getWeightHistory({int limit = 100}) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/weight?limit=$limit'))
+          .get(Uri.parse('$baseUrl/weight?limit=$limit'), headers: _headers)
           .timeout(_timeout);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -84,7 +97,7 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/weight'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _headers,
             body: json.encode({
               'weight_kg': weight,
               'notes': notes ?? '',
@@ -96,6 +109,48 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('记录体重失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  Future<WeightRecord> updateWeight(int id, double? weight, String? notes) async {
+    try {
+      final Map<String, dynamic> data = {};
+      if (weight != null) data['weight_kg'] = weight;
+      if (notes != null) data['notes'] = notes;
+
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/weight/$id'),
+            headers: _headers,
+            body: json.encode(data),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return WeightRecord.fromJson(
+            json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('更新失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  Future<void> deleteWeight(int id) async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/weight/$id'),
+            headers: _headers,
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) return;
+      throw ApiException('删除失败 (${response.statusCode})');
     } on TimeoutException {
       throw ApiException('请求超时，请检查网络连接');
     } on http.ClientException {
@@ -124,7 +179,7 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/meal-plan'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _headers,
             body: json.encode({
               'ingredients': ingredients,
               'preferences': fullPreferences,
@@ -149,7 +204,7 @@ class ApiService {
   Future<UserProfile?> getUser() async {
     try {
       final response =
-          await http.get(Uri.parse('$baseUrl/user')).timeout(_timeout);
+          await http.get(Uri.parse('$baseUrl/user'), headers: _headers).timeout(_timeout);
       if (response.statusCode == 200) {
         return UserProfile.fromJson(
             json.decode(utf8.decode(response.bodyBytes)));
@@ -167,7 +222,7 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/user'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _headers,
             body: json.encode(user.toJson()),
           )
           .timeout(_timeout);
@@ -188,7 +243,7 @@ class ApiService {
       final response = await http
           .patch(
             Uri.parse('$baseUrl/user'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _headers,
             body: json.encode(user.toJson()),
           )
           .timeout(_timeout);

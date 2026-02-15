@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/bmr_calculator.dart';
 import '../widgets/glass_card.dart';
 
 class BmrScreen extends StatefulWidget {
@@ -20,7 +20,6 @@ class _BmrScreenState extends State<BmrScreen> {
   int _age = 25;
   String _gender = 'male';
   Map<String, dynamic>? _result;
-  bool _isCalculating = false;
   bool _hasAutoFilled = false;
 
   @override
@@ -45,21 +44,18 @@ class _BmrScreenState extends State<BmrScreen> {
     }
   }
 
-  void _calculate() async {
-    setState(() => _isCalculating = true);
-    try {
-      final api = context.read<ApiService>();
-      final result = await api.calculateBmr(_weight, _height, _age, _gender);
-      if (!mounted) return;
-      setState(() => _result = result);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('计算失败: $e'), backgroundColor: AppColors.danger),
-      );
-    } finally {
-      setState(() => _isCalculating = false);
-    }
+  void _calculate() {
+    // 本地计算 BMR，无需网络请求
+    final bmr = BmrCalculator.calculateBmr(
+      weight: _weight,
+      height: _height,
+      age: _age,
+      gender: _gender,
+    );
+    final tdee = BmrCalculator.getAllTdeeLevels(bmr);
+    setState(() {
+      _result = {'bmr': bmr, 'tdee': tdee};
+    });
   }
 
   Future<void> _saveToProfile() async {
@@ -122,14 +118,8 @@ class _BmrScreenState extends State<BmrScreen> {
                   (val) => setState(() => _age = val.toInt())),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _isCalculating ? null : _calculate,
-                child: _isCalculating
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : const Text('立即计算'),
+                onPressed: _calculate,
+                child: const Text('立即计算'),
               ),
               const SizedBox(height: 32),
               if (_result != null) _buildResultView(),
@@ -200,7 +190,7 @@ class _BmrScreenState extends State<BmrScreen> {
   }
 
   Widget _buildResultView() {
-    final tdee = _result!['tdee'] as Map<String, dynamic>;
+    final tdee = _result!['tdee'] as Map<String, double>;
     final bmrValue = (_result!['bmr'] as num).toDouble();
     final userProvider = context.watch<UserProvider>();
 

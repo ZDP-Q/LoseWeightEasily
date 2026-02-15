@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../models/food.dart';
-import '../services/api_service.dart';
+import '../providers/search_provider.dart';
 import '../utils/app_colors.dart';
 import '../widgets/glass_card.dart';
 
@@ -17,8 +16,6 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<FoodSearchResult> _results = [];
-  bool _isSearching = false;
   Timer? _debounce;
 
   static const List<String> _suggestions = [
@@ -33,6 +30,18 @@ class _SearchScreenState extends State<SearchScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // 恢复上次搜索关键词（Provider 状态跨 Tab 保持）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<SearchProvider>();
+      if (provider.lastQuery.isNotEmpty) {
+        _searchController.text = provider.lastQuery;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
@@ -43,32 +52,21 @@ class _SearchScreenState extends State<SearchScreen> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
       if (query.trim().isNotEmpty) {
-        _performSearch(query.trim());
+        context.read<SearchProvider>().searchFood(query.trim());
       }
     });
   }
 
-  void _performSearch(String query) async {
-    if (query.isEmpty) return;
-    setState(() => _isSearching = true);
-    try {
-      final api = context.read<ApiService>();
-      final results = await api.searchFood(query);
-      if (!mounted) return;
-      setState(() => _results = results);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('搜索失败: $e'), backgroundColor: AppColors.danger),
-      );
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
-    }
+  void _performSearch(String query) {
+    if (query.trim().isEmpty) return;
+    _debounce?.cancel();
+    context.read<SearchProvider>().searchFood(query.trim());
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<SearchProvider>();
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -78,11 +76,13 @@ class _SearchScreenState extends State<SearchScreen> {
               child: _buildSearchBox(),
             ),
             Expanded(
-              child: _isSearching
+              child: provider.isSearching
                   ? const Center(child: CircularProgressIndicator())
-                  : _results.isEmpty
-                      ? _buildEmptyState()
-                      : _buildResultsList(),
+                  : provider.error != null
+                      ? _buildErrorState(provider)
+                      : !provider.hasResults
+                          ? _buildEmptyState()
+                          : _buildResultsList(provider),
             ),
           ],
         ),
@@ -121,13 +121,28 @@ class _SearchScreenState extends State<SearchScreen> {
                   onPressed: () {
                     _searchController.clear();
                     _debounce?.cancel();
-                    setState(() => _results = []);
+                    context.read<SearchProvider>().clearResults();
                   },
                 )
               : null,
         ),
       ),
     ).animate().fadeIn().slideY(begin: -0.2, end: 0);
+  }
+
+  Widget _buildErrorState(SearchProvider provider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(FontAwesomeIcons.circleExclamation,
+              size: 48, color: AppColors.danger.withValues(alpha: 0.5)),
+          const SizedBox(height: 16),
+          Text(provider.error ?? '搜索失败',
+              style: const TextStyle(color: AppColors.textSecondary)),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -192,12 +207,12 @@ class _SearchScreenState extends State<SearchScreen> {
     ).animate().fadeIn();
   }
 
-  Widget _buildResultsList() {
+  Widget _buildResultsList(SearchProvider provider) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      itemCount: _results.length,
+      itemCount: provider.results.length,
       itemBuilder: (context, index) {
-        final food = _results[index];
+        final food = provider.results[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: GlassCard(
