@@ -1,23 +1,20 @@
 import faiss
-from typing import List, Optional, Dict, Any
+from typing import List
 from sentence_transformers import SentenceTransformer
-from sqlmodel import Session, select
-from ..models import Food
-from ..schemas.food import FoodSearchResult
-from ..core.config import get_settings
 
-settings = get_settings()
+from ..repositories.food_repository import FoodRepository
+from ..schemas.food import FoodSearchResult
 
 
 class FoodService:
     def __init__(
         self,
-        session: Session,
+        repository: FoodRepository,
         model: SentenceTransformer,
         index: faiss.Index,
         metadata: List[int],
     ):
-        self.session = session
+        self.repo = repository
         self.model = model
         self.index = index
         self.metadata = metadata
@@ -29,40 +26,31 @@ class FoodService:
         query_vector = self.model.encode([query]).astype("float32")
         distances, indices = self.index.search(query_vector, limit)
 
-        results = []
+        # 批量收集所有有效的 fdc_id，避免 N+1 查询
+        valid_entries: list[tuple[float, int]] = []
         for dist, idx in zip(distances[0], indices[0]):
             if idx != -1 and idx < len(self.metadata):
-                fdc_id = self.metadata[idx]
-                food_details = self.get_food_simple_details(fdc_id)
-                if food_details:
-                    results.append(
-                        FoodSearchResult(
-                            fdc_id=fdc_id,
-                            description=food_details["description"],
-                            category=food_details["category"],
-                            calories_per_100g=food_details["calories_per_100g"],
-                            similarity=float(1 - dist),
-                        )
+                valid_entries.append((float(dist), self.metadata[idx]))
+
+        if not valid_entries:
+            return []
+
+        # 一次性批量查询所有食物详情
+        fdc_ids = [fdc_id for _, fdc_id in valid_entries]
+        details_map = self.repo.get_foods_simple_details(fdc_ids)
+
+        results = []
+        for dist, fdc_id in valid_entries:
+            detail = details_map.get(fdc_id)
+            if detail:
+                results.append(
+                    FoodSearchResult(
+                        fdc_id=fdc_id,
+                        description=detail["description"],
+                        category=detail["category"],
+                        calories_per_100g=detail["calories_per_100g"],
+                        similarity=1 - dist,
                     )
+                )
 
         return results
-
-    def get_food_simple_details(self, fdc_id: int) -> Optional[Dict[str, Any]]:
-        statement = select(Food).where(Food.fdc_id == fdc_id)
-        food = self.session.exec(statement).first()
-        if not food:
-            return None
-
-        calories = 0
-        for fn in food.nutrients:
-            # 208 is the typical nutrient number for Energy (kcal)
-            if fn.nutrient.nutrient_number == "208":
-                calories = fn.amount
-                break
-
-        return {
-            "fdc_id": food.fdc_id,
-            "description": food.description,
-            "category": food.food_category,
-            "calories_per_100g": calories,
-        }

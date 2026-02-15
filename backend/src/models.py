@@ -1,7 +1,8 @@
 from __future__ import annotations
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, timezone
+from typing import Optional
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy.orm import relationship
 
 # ============================================================================
 # Database Models
@@ -21,8 +22,14 @@ class FoodBase(SQLModel):
 
 class Food(FoodBase, table=True):
     __tablename__ = "foods"
-    nutrients: List["FoodNutrient"] = Relationship(back_populates="food")
-    portions: List["FoodPortion"] = Relationship(back_populates="food")
+    nutrients: list["FoodNutrient"] = Relationship(
+        back_populates="food",
+        sa_relationship=relationship("FoodNutrient", back_populates="food")
+    )
+    portions: list["FoodPortion"] = Relationship(
+        back_populates="food",
+        sa_relationship=relationship("FoodPortion", back_populates="food")
+    )
 
 
 class NutrientBase(SQLModel):
@@ -35,7 +42,10 @@ class NutrientBase(SQLModel):
 
 class Nutrient(NutrientBase, table=True):
     __tablename__ = "nutrients"
-    food_links: List["FoodNutrient"] = Relationship(back_populates="nutrient")
+    food_links: list["FoodNutrient"] = Relationship(
+        back_populates="nutrient",
+        sa_relationship=relationship("FoodNutrient", back_populates="nutrient")
+    )
 
 
 class FoodNutrientBase(SQLModel):
@@ -73,7 +83,7 @@ class FoodPortion(FoodPortionBase, table=True):
 
 class WeightRecordBase(SQLModel):
     weight_kg: float
-    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: Optional[str] = ""
 
 
@@ -91,7 +101,7 @@ class UserBase(SQLModel):
     target_weight_kg: float
     bmr: Optional[float] = None
     daily_calorie_goal: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class User(UserBase, table=True):

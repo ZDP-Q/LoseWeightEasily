@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from ..schemas.user import UserCreate, UserRead, UserUpdate
 from ..services.user_service import UserService
+from ..repositories.user_repository import UserRepository
 from ..core.database import get_session
 
 router = APIRouter(prefix="/user", tags=["user"])
 
 
 def get_user_service(session: Session = Depends(get_session)) -> UserService:
-    return UserService(session)
+    return UserService(UserRepository(session))
 
 
 @router.get("", response_model=UserRead)
