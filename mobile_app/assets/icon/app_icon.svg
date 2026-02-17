@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景：柔和的渐变绿色 -->
+  <rect width="1024" height="1024" rx="200" fill="url(#paint0_linear)"/>
+  
+  <!-- 树干 -->
+  <rect x="472" y="700" width="80" height="120" rx="20" fill="#5D4037"/>
+  
+  <!-- 松树层 3 (最底层) -->
+  <path d="M262 700L512 350L762 700H262Z" fill="#2E7D32"/>
+  
+  <!-- 松树层 2 -->
+  <path d="M312 550L512 270L712 550H312Z" fill="#388E3C"/>
+  
+  <!-- 松树层 1 (顶层) -->
+  <path d="M362 400L512 200L662 400H362Z" fill="#43A047"/>
+  
+  <!-- 轻盈装饰：一道弧线代表“松”和“轻松” -->
+  <path d="M300 850C400 900 624 900 724 850" stroke="white" stroke-width="40" stroke-linecap="round" stroke-opacity="0.6"/>
+
+  <defs>
+    <linearGradient id="paint0_linear" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A5D6A7"/>
+      <stop offset="1" stop-color="#4CAF50"/>
+    </linearGradient>
+  </defs>
+</svg>

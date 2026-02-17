@@ -10,7 +10,9 @@ class UserCreate(BaseModel):
     height_cm: float = Field(ge=50, le=300)
     initial_weight_kg: float = Field(ge=10, le=500)
     target_weight_kg: float = Field(ge=10, le=500)
+    activity_level: Optional[str] = Field(default="sedentary")
     bmr: Optional[float] = None
+    tdee: Optional[float] = None
     daily_calorie_goal: Optional[float] = Field(default=None, ge=500, le=10000)
 
 
@@ -22,7 +24,9 @@ class UserRead(BaseModel):
     height_cm: float
     initial_weight_kg: float
     target_weight_kg: float
+    activity_level: Optional[str] = "sedentary"
     bmr: Optional[float] = None
+    tdee: Optional[float] = None
     daily_calorie_goal: Optional[float] = None
     created_at: datetime
 
@@ -37,5 +41,7 @@ class UserUpdate(BaseModel):
     height_cm: Optional[float] = Field(default=None, ge=50, le=300)
     initial_weight_kg: Optional[float] = Field(default=None, ge=10, le=500)
     target_weight_kg: Optional[float] = Field(default=None, ge=10, le=500)
+    activity_level: Optional[str] = Field(default=None)
     bmr: Optional[float] = None
+    tdee: Optional[float] = None
     daily_calorie_goal: Optional[float] = Field(default=None, ge=500, le=10000)

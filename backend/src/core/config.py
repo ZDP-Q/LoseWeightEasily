@@ -67,8 +67,8 @@ class SearchSettings(BaseModel):
 
 class LLMSettings(BaseModel):
     api_key: str = Field(default="")
-    base_url: str = Field(default="https://api.openai.com/v1")
-    model: str = Field(default="gpt-4o-mini")
+    base_url: str = Field(default="https://dashscope.aliyuncs.com/compatible-mode/v1")
+    model: str = Field(default="qwen-plus")
 
 
 class SecuritySettings(BaseModel):

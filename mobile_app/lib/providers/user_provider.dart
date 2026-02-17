@@ -20,8 +20,10 @@ class UserProvider extends ChangeNotifier {
 
   String get displayName => _user?.name ?? '新用户';
   double? get bmr => _user?.bmr;
+  double? get tdee => _user?.tdee;
   double? get dailyCalorieGoal => _user?.dailyCalorieGoal;
   double? get targetWeight => _user?.targetWeightKg;
+
   double? get initialWeight => _user?.initialWeightKg;
 
   Future<void> loadUser() async {

@@ -33,7 +33,7 @@ void main() {
             update: (_, api, prev) => prev ?? MealPlanProvider(api),
           ),
         ],
-        child: const LoseWeightEasilyApp(),
+        child: const XiaoSongApp(),
       ),
     );
 
@@ -41,6 +41,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify that the app starts
-    expect(find.byType(LoseWeightEasilyApp), findsOneWidget);
+    expect(find.byType(XiaoSongApp), findsOneWidget);
   });
 }

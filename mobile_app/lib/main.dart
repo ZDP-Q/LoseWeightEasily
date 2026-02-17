@@ -7,6 +7,7 @@ import 'providers/search_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/weight_provider.dart';
 import 'providers/meal_plan_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/main_screen.dart';
 import 'utils/theme.dart';
 
@@ -20,6 +21,7 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         Provider(create: (_) => ApiService()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProxyProvider<ApiService, UserProvider>(
@@ -39,20 +41,24 @@ void main() {
           update: (_, api, prev) => prev ?? MealPlanProvider(api),
         ),
       ],
-      child: const LoseWeightEasilyApp(),
+      child: const XiaoSongApp(),
     ),
   );
 }
 
-class LoseWeightEasilyApp extends StatelessWidget {
-  const LoseWeightEasilyApp({super.key});
+class XiaoSongApp extends StatelessWidget {
+  const XiaoSongApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
-      title: 'LoseWeightEasily',
+      title: '小松',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme(context),
+      theme: AppTheme.lightTheme(context),
+      darkTheme: AppTheme.darkTheme(context),
+      themeMode: themeProvider.themeMode,
       home: const MainScreen(),
     );
   }

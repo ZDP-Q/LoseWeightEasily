@@ -1,4 +1,4 @@
-# LoseWeightEasily 移动端 📱
+# 小松 移动端 📱
 
 基于 Flutter 构建的现代化减重助手客户端。
 

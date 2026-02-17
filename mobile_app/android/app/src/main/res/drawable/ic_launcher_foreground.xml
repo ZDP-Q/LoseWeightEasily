@@ -1,26 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="200"
-    android:viewportHeight="200">
-    <!-- 苹果主体曲线 -->
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <!-- 设计一个更有层次感和线条感的极简松树 -->
+    <!-- 背景圆环装饰（极浅的绿色，增加细节） -->
     <path
-        android:pathData="M100,160C130,160 160,140 160,100C160,60 135,50 100,50C65,50 40,60 40,100C40,140 70,160 100,160Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="100"
-                android:startY="50"
-                android:endX="100"
-                android:endY="160"
-                android:type="linear">
-                <item android:offset="0" android:color="#FF3F51B5"/>
-                <item android:offset="1" android:color="#FF1A237E"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-    <!-- 祖母绿叶子 -->
+        android:fillColor="#F1F8E9"
+        android:pathData="M512,512m-380,0a380,380 0,1 1,760 0a380,380 0,1 1,-760 0" />
+    
+    <!-- 松树主体：三个错落的弧形层叠 -->
+    <!-- 底层 -->
     <path
-        android:pathData="M105,50C105,50 115,25 140,20C140,20 135,45 110,55"
-        android:fillColor="#FF50C878"/>
+        android:fillColor="#2E7D32"
+        android:pathData="M512,400 C450,400 350,550 350,600 C350,650 450,630 512,630 C574,630 674,650 674,600 C674,550 574,400 512,400 Z" />
+    <!-- 中层 -->
+    <path
+        android:fillColor="#43A047"
+        android:pathData="M512,320 C465,320 380,450 380,480 C380,510 465,500 512,500 C559,500 644,510 644,480 C644,450 559,320 512,320 Z" />
+    <!-- 顶层 -->
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M512,250 C480,250 420,350 420,370 C420,390 480,380 512,380 C544,380 604,390 604,370 C604,350 544,250 512,250 Z" />
+    
+    <!-- 树干（深咖啡色，细长优雅） -->
+    <path
+        android:fillColor="#5D4037"
+        android:pathData="M495,630h34v120h-34z" />
 </vector>

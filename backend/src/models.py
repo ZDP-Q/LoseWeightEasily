@@ -99,7 +99,9 @@ class UserBase(SQLModel):
     height_cm: float
     initial_weight_kg: float
     target_weight_kg: float
+    activity_level: Optional[str] = Field(default="sedentary")  # sedentary, light, moderate, active, very_active
     bmr: Optional[float] = None
+    tdee: Optional[float] = None
     daily_calorie_goal: Optional[float] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

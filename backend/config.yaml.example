@@ -7,16 +7,16 @@
 #
 # 配置优先级：环境变量 > config.yaml > 默认值
 
-# LLM API 配置（用于食谱规划功能）
+# LLM API 配置（用于食谱规划和食物识别功能）
 llm:
   # API Key（必需）
   api_key: ""
   
-  # API 基础地址（可选）
-  base_url: "https://api.openai.com/v1"
+  # API 基础地址（可选，Qwen 默认为 dashscope）
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   
-  # 模型名称（可选）
-  model: "gpt-3.5-turbo"
+  # 模型名称（推荐使用 qwen-plus 或 qwen-max）
+  model: "qwen-plus"
 
 # 数据库配置 (PostgreSQL)
 database:

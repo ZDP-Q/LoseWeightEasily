@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/weight_provider.dart';
@@ -11,27 +12,22 @@ import '../widgets/glass_card.dart';
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
-  /// 跳转到指定 Tab（通过 NavigationProvider）
-  void _navigateToTab(BuildContext context, int tabIndex) {
-    context.read<NavigationProvider>().switchTab(tabIndex);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(context),
-              const SizedBox(height: 28),
-              _buildWeightProgressCard(context),
-              const SizedBox(height: 20),
-              _buildCalorieCard(context),
               const SizedBox(height: 24),
-              _buildQuickActions(context),
+              _buildSummaryCards(context),
+              const SizedBox(height: 24),
+              _buildWeightChart(context),
+              const SizedBox(height: 24),
+              _buildAICoachEntry(context),
             ],
           ),
         ),
@@ -41,278 +37,165 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final userProvider = context.watch<UserProvider>();
-    final name = userProvider.displayName;
-
-    final hour = DateTime.now().hour;
-    String greeting;
-    if (hour < 6) {
-      greeting = '夜深了';
-    } else if (hour < 12) {
-      greeting = '早上好';
-    } else if (hour < 18) {
-      greeting = '下午好';
-    } else {
-      greeting = '晚上好';
-    }
-
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$greeting, $name',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 24,
-                    ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                userProvider.hasUser ? '今天也是自律的一天 💪' : '设置个人资料，开启减重之旅',
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '你好, ${userProvider.displayName}',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const Text('今天也是元气满满的一天 🌟', 
+                style: TextStyle(color: AppColors.textSecondary)),
+          ],
+        ),
+        const Spacer(),
+        const CircleAvatar(
+          radius: 24,
+          backgroundColor: AppColors.primary,
+          child: Icon(Icons.person, color: Colors.white),
         ),
       ],
     ).animate().fadeIn().slideX();
   }
 
-  Widget _buildWeightProgressCard(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+  Widget _buildSummaryCards(BuildContext context) {
     final weightProvider = context.watch<WeightProvider>();
+    final userProvider = context.watch<UserProvider>();
+    final currentWeight = weightProvider.latestWeight ?? (userProvider.user?.initialWeightKg ?? 0);
+    final goal = userProvider.dailyCalorieGoal ?? 0;
 
-    if (!userProvider.hasUser) {
-      return _buildSetupCard(context);
-    }
+    return Row(
+      children: [
+        Expanded(
+          child: _buildInfoCard(
+            '当前体重',
+            currentWeight.toStringAsFixed(1),
+            'kg',
+            FontAwesomeIcons.weightScale,
+            Colors.blue,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildInfoCard(
+            '目标摄入',
+            goal.toStringAsFixed(0),
+            'kcal',
+            FontAwesomeIcons.fire,
+            Colors.orange,
+          ),
+        ),
+      ],
+    ).animate().fadeIn(delay: 200.ms).scale();
+  }
 
-    final user = userProvider.user!;
-    final currentWeight = weightProvider.latestWeight ?? user.initialWeightKg;
-    final targetWeight = user.targetWeightKg;
-    final initialWeight = user.initialWeightKg;
-
-    // 计算减重进度
-    final totalToLose = initialWeight - targetWeight;
-    final lost = initialWeight - currentWeight;
-    final progress = totalToLose > 0 ? (lost / totalToLose).clamp(0.0, 1.0) : 0.0;
-
-    final weightChange = weightProvider.weightChange(initialWeight);
-    final changeText = weightChange != null
-        ? (weightChange <= 0
-            ? '${weightChange.toStringAsFixed(1)} kg'
-            : '+${weightChange.toStringAsFixed(1)} kg')
-        : '--';
-    final changeColor = (weightChange ?? 0) <= 0 ? AppColors.secondary : AppColors.danger;
-
+  Widget _buildInfoCard(String title, String value, String unit, IconData icon, Color color) {
     return GlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('减重进度', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: changeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  changeText,
-                  style: TextStyle(
-                    color: changeColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-              minHeight: 12,
-            ),
-          ),
+          Icon(icon, size: 20, color: color),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                '${initialWeight.toStringAsFixed(1)} kg',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              Text(
-                '目标 ${targetWeight.toStringAsFixed(1)} kg',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
+              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 4),
+              Text(unit, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             ],
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStat('当前体重', '${currentWeight.toStringAsFixed(1)} kg',
-                  AppColors.primary),
-              _buildStat('目标体重', '${targetWeight.toStringAsFixed(1)} kg',
-                  AppColors.secondary),
-              _buildStat(
-                '已减',
-                '${lost.toStringAsFixed(1)} kg',
-                lost > 0 ? AppColors.secondary : AppColors.textSecondary,
-              ),
-            ],
-          ),
+          const SizedBox(height: 4),
+          Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms).scale();
+    );
   }
 
-  Widget _buildSetupCard(BuildContext context) {
+  Widget _buildWeightChart(BuildContext context) {
+    final weightProvider = context.watch<WeightProvider>();
+    final history = weightProvider.records;
+
+    if (history.isEmpty) {
+      return const GlassCard(
+        height: 200,
+        child: Center(child: Text('暂无体重数据')),
+      );
+    }
+
+    // 转换为图表点
+    final spots = history.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value.weightKg);
+    }).toList();
+
     return GlassCard(
-      padding: const EdgeInsets.all(24),
-      color: AppColors.primary.withValues(alpha: 0.08),
+      padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(FontAwesomeIcons.userGear, color: AppColors.primary, size: 40),
-          const SizedBox(height: 16),
-          const Text(
-            '欢迎使用 LoseWeightEasily',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '请先设置个人资料，以获取精准的减重建议',
-            style: TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
+          const Text('体重曲线', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
           SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _navigateToTab(context, 4),
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('去设置'),
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.primary,
+                    barWidth: 4,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms).scale();
+    ).animate().fadeIn(delay: 400.ms);
   }
 
-  Widget _buildCalorieCard(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
-    if (!userProvider.hasUser) return const SizedBox.shrink();
-
-    final bmr = userProvider.bmr;
-    final tdee = userProvider.dailyCalorieGoal;
-
-    return GlassCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('代谢概览',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Icon(FontAwesomeIcons.fire, size: 18, color: Colors.orange.shade300),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildMetricColumn(
-                '基础代谢 (BMR)',
-                bmr != null ? '${bmr.toStringAsFixed(0)} kcal' : '未计算',
-                Colors.blue,
-              ),
-              Container(width: 1, height: 40, color: AppColors.border.withValues(alpha: 0.3)),
-              _buildMetricColumn(
-                '每日目标 (TDEE)',
-                tdee != null ? '${tdee.toStringAsFixed(0)} kcal' : '未设置',
-                Colors.orange,
-              ),
-            ],
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0);
-  }
-
-  Widget _buildMetricColumn(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        const SizedBox(height: 6),
-        Text(value,
-            style: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildStat(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        const SizedBox(height: 4),
-        Text(value,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.4,
-      children: [
-        _buildActionCard(context, '记体重', FontAwesomeIcons.weightScale,
-            AppColors.primary, () => _navigateToTab(context, 2)),
-        _buildActionCard(context, '查食物', FontAwesomeIcons.magnifyingGlass,
-            AppColors.secondary, () => _navigateToTab(context, 1)),
-        _buildActionCard(context, '开食谱', FontAwesomeIcons.utensils,
-            Colors.orange, () => _navigateToTab(context, 3)),
-        _buildActionCard(context, '个人资料', FontAwesomeIcons.user,
-            Colors.blue, () => _navigateToTab(context, 4)),
-      ],
-    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2, end: 0);
-  }
-
-  Widget _buildActionCard(BuildContext context, String title, IconData icon,
-      Color color, VoidCallback onTap) {
+  Widget _buildAICoachEntry(BuildContext context) {
     return GlassCard(
       padding: EdgeInsets.zero,
+      color: AppColors.primary.withValues(alpha: 0.1),
       child: InkWell(
-        onTap: onTap,
+        onTap: () => context.read<NavigationProvider>().switchTab(1),
         borderRadius: BorderRadius.circular(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              const CircleAvatar(
+                backgroundColor: AppColors.primary,
+                child: Icon(FontAwesomeIcons.tree, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('对话小松 AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('为你开食谱、识别热量或答疑解惑', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary.withValues(alpha: 0.5)),
+            ],
+          ),
         ),
       ),
-    );
+    ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2, end: 0);
   }
 }

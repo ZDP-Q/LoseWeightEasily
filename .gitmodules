@@ -1,0 +1,3 @@
+[submodule "backend/LoseWeightAgent"]
+	path = backend/LoseWeightAgent
+	url = https://github.com/ZDP-Q/LoseWeightAgent.git

@@ -6,7 +6,7 @@ class NavigationProvider extends ChangeNotifier {
   int get selectedIndex => _selectedIndex;
 
   void switchTab(int index) {
-    if (index >= 0 && index < 5 && index != _selectedIndex) {
+    if (index >= 0 && index < 3 && index != _selectedIndex) {
       _selectedIndex = index;
       notifyListeners();
     }

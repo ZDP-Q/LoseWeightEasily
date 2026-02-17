@@ -27,10 +27,13 @@ class FoodService:
         distances, indices = self.index.search(query_vector, limit)
 
         # 批量收集所有有效的 fdc_id，避免 N+1 查询
+        # metadata 可能包含 int (fdc_id) 或 dict {"fdc_id": ..., "description": ...}
         valid_entries: list[tuple[float, int]] = []
         for dist, idx in zip(distances[0], indices[0]):
             if idx != -1 and idx < len(self.metadata):
-                valid_entries.append((float(dist), self.metadata[idx]))
+                entry = self.metadata[idx]
+                fdc_id = entry["fdc_id"] if isinstance(entry, dict) else entry
+                valid_entries.append((float(dist), fdc_id))
 
         if not valid_entries:
             return []

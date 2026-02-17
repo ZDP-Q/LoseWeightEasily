@@ -8,7 +8,7 @@ import '../models/weight_record.dart';
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'http://cd-1.frp.one:33583',
   );
   static const Duration _timeout = Duration(seconds: 10);
 
@@ -199,8 +199,59 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // AI Chat & Food Recognition
+  // ---------------------------------------------------------------------------
+  Future<String> chatWithCoach(String message) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/chat'),
+            headers: _headers,
+            body: json.encode({'message': message}),
+          )
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        return data['reply'];
+      }
+      throw ApiException('对话失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('AI 响应超时');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  Future<Map<String, dynamic>> recognizeFood(List<int> imageBytes) async {
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/food-analysis/recognize'));
+      if (apiKey.isNotEmpty) {
+        request.headers['X-API-Key'] = apiKey;
+      }
+      request.files.add(http.MultipartFile.fromBytes(
+        'file',
+        imageBytes,
+        filename: 'food.jpg',
+      ));
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return json.decode(utf8.decode(response.bodyBytes));
+      }
+      throw ApiException('识别失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('识别超时，请重试');
+    } catch (e) {
+      throw ApiException('网络连接或识别出错: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // User
   // ---------------------------------------------------------------------------
+
   Future<UserProfile?> getUser() async {
     try {
       final response =

@@ -3,19 +3,16 @@ import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../providers/navigation_provider.dart';
 import 'dashboard_screen.dart';
-import 'search_screen.dart';
-import 'weight_screen.dart';
-import 'meal_plan_screen.dart';
+import 'xiao_song_screen.dart';
 import 'user_screen.dart';
+import '../utils/app_colors.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
 
   static const List<Widget> _screens = [
     DashboardScreen(),
-    SearchScreen(),
-    WeightScreen(),
-    MealPlanScreen(),
+    XiaoSongScreen(),
     UserScreen(),
   ];
 
@@ -31,47 +28,35 @@ class MainScreen extends StatelessWidget {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
-              width: 0.5,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
             ),
-          ),
+          ],
         ),
         child: NavigationBar(
-          height: 65,
+          height: 70,
           elevation: 0,
           selectedIndex: selectedIndex,
           onDestinationSelected: navProvider.switchTab,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          indicatorColor: AppColors.primary.withValues(alpha: 0.1),
           destinations: const [
             NavigationDestination(
               icon: Icon(FontAwesomeIcons.house, size: 20),
-              selectedIcon:
-                  Icon(FontAwesomeIcons.house, size: 20, color: Colors.white),
+              selectedIcon: Icon(FontAwesomeIcons.house, size: 20, color: AppColors.primary),
               label: '首页',
             ),
             NavigationDestination(
-              icon: Icon(FontAwesomeIcons.magnifyingGlass, size: 20),
-              selectedIcon: Icon(FontAwesomeIcons.magnifyingGlass,
-                  size: 20, color: Colors.white),
-              label: '查食物',
-            ),
-            NavigationDestination(
-              icon: Icon(FontAwesomeIcons.weightScale, size: 20),
-              selectedIcon: Icon(FontAwesomeIcons.weightScale,
-                  size: 20, color: Colors.white),
-              label: '记体重',
-            ),
-            NavigationDestination(
-              icon: Icon(FontAwesomeIcons.utensils, size: 20),
-              selectedIcon: Icon(FontAwesomeIcons.utensils,
-                  size: 20, color: Colors.white),
-              label: '开食谱',
+              icon: Icon(FontAwesomeIcons.tree, size: 20),
+              selectedIcon: Icon(FontAwesomeIcons.tree, size: 20, color: AppColors.primary),
+              label: '小松',
             ),
             NavigationDestination(
               icon: Icon(FontAwesomeIcons.user, size: 20),
-              selectedIcon:
-                  Icon(FontAwesomeIcons.user, size: 20, color: Colors.white),
+              selectedIcon: Icon(FontAwesomeIcons.user, size: 20, color: AppColors.primary),
               label: '我的',
             ),
           ],
