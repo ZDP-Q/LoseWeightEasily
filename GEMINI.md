@@ -15,23 +15,28 @@
 
 ## 🏗️ 架构概览
 
-- **后端 (Backend):** 基于 **FastAPI** 的 RESTful API，运行在 Python 3.12+ 环境下。
+- **后端 (Backend):** 基于 **FastAPI** 的 RESTful API，采用分层架构 (Repository/Service/API)，运行在 Python 3.12+ 环境下。
 - **前端 (Frontend):** 基于 **Flutter** 的移动端应用（Android/iOS）。
-- **数据库:** **PostgreSQL**，用于存储用户信息、体重记录和食物元数据。
-- **搜索引擎:** 基于 **FAISS** 和 **Sentence-Transformers** 的语义向量搜索引擎。
-- **AI 规划:** 集成 OpenAI 兼容 API 进行智能食谱规划。
+- **数据库:** **PostgreSQL**，用于存储用户信息、体重记录和核心业务数据。
+- **搜索引擎:** 基于 **Milvus** 向量数据库和 **DashScope (Qwen)** 嵌入模型的语义搜索引擎。
+- **AI 核心:** 自研 **LoseWeightAgent**，集成 LLM 进行智能对话、食谱规划和食物多模态分析。
 
 ## 📁 核心目录结构
 
 - `backend/`: 后端源码。
-  - `src/`: Python 源代码。
+  - `src/`: 核心业务逻辑。
+    - `api/`: FastAPI 路由处理器。
+    - `core/`: 核心配置、数据库连接、日志等基础组件。
+    - `models/`: 数据库模型 (SQLModel)。
+    - `repositories/`: 数据库访问层。
+    - `schemas/`: Pydantic 数据验证模型。
+    - `services/`: 业务服务层。
     - `app.py`: FastAPI 应用入口。
-    - `models.py`: 数据模型 (SQLModel/Pydantic)。
-    - `search.py`: FAISS 搜索引擎逻辑。
-    - `meal_planner.py`: AI 食谱规划。
-    - `bmr.py`: 健康指标计算逻辑。
-  - `data/`: 存储食物原始数据 (`.json`) 和 FAISS 索引 (`.faiss`, `.pkl`)。
-  - `config.yaml`: 项目配置文件（需从 `config.yaml.example` 复制）。
+  - `LoseWeightAgent/`: AI 功能核心组件。
+    - `src/agent.py`: Agent 主控逻辑。
+    - `src/services/`: 包含 Milvus 管理、嵌入生成、食物检索等 AI 服务。
+  - `data/`: 存储食物原始元数据 (`.json`)。
+  - `config.yaml`: 项目配置文件。
 - `mobile_app/`: Flutter 源码。
   - `lib/`: Dart 源代码。
     - `main.dart`: 应用入口。

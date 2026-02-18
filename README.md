@@ -8,7 +8,7 @@
 
 ## ✨ 核心特性
 
-- 🔍 **智能语义搜索**：基于 FAISS 和多语言嵌入模型，支持跨语言（中英）搜索 USDA 食物营养数据。
+- 🔍 **智能语义搜索**：基于 **Milvus** 向量数据库和 **DashScope** 多模态嵌入模型，支持跨语言（中英）搜索 USDA 食物营养数据。
 - ⚖️ **体重趋势追踪**：可视化记录每日体重变化，生成动态趋势图表。
 - 🔥 **代谢精准计算**：计算 BMR（基础代谢率）和 TDEE（每日总消耗），辅助制定减脂计划。
 - 🍽️ **AI 食谱规划**：集成 OpenAI API，根据现有食材和营养需求智能生成一日三餐建议。
@@ -74,7 +74,7 @@ flutter run
 
 ## 🛠️ 技术栈
 
-- **后端**: [FastAPI](https://fastapi.tiangolo.com/), [SQLModel](https://sqlmodel.tiangolo.com/), [PostgreSQL](https://www.postgresql.org/), [FAISS](https://github.com/facebookresearch/faiss), [Sentence-Transformers](https://sbert.net/)
+- **后端**: [FastAPI](https://fastapi.tiangolo.com/), [SQLModel](https://sqlmodel.tiangolo.com/), [PostgreSQL](https://www.postgresql.org/), [Milvus](https://milvus.io/), [DashScope](https://help.aliyun.com/product/2399481.html)
 - **前端**: [Flutter](https://flutter.dev/), [Provider](https://pub.dev/packages/provider), [fl_chart](https://pub.dev/packages/fl_chart)
 - **工具**: [uv](https://github.com/astral-sh/uv), [Ruff](https://github.com/astral-sh/ruff)
 
