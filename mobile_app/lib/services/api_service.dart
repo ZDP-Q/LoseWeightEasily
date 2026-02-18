@@ -8,7 +8,7 @@ import '../models/weight_record.dart';
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://cd-1.frp.one:33583',
+    defaultValue: 'http://xiaosong.fucku.top',
   );
   static const Duration _timeout = Duration(seconds: 10);
 
@@ -26,7 +26,7 @@ class ApiService {
     try {
       final response = await http
           .get(
-            Uri.parse('$baseUrl/search?query=${Uri.encodeComponent(query)}'),
+            Uri.parse('$baseUrl/food/search?query=${Uri.encodeComponent(query)}'),
             headers: _headers,
           )
           .timeout(_timeout);
@@ -222,6 +222,70 @@ class ApiService {
     }
   }
 
+  Stream<ChatStreamEvent> chatWithCoachStream(String message) async* {
+    final client = http.Client();
+    try {
+      final request = http.Request('POST', Uri.parse('$baseUrl/chat/stream'));
+      request.headers.addAll(_headers);
+      request.body = json.encode({'message': message});
+
+      final response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw ApiException('连接失败 (${response.statusCode})');
+      }
+
+      String buffer = '';
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        while (buffer.contains('\n\n')) {
+          final index = buffer.indexOf('\n\n');
+          final eventString = buffer.substring(0, index);
+          buffer = buffer.substring(index + 2);
+          
+          final event = _parseEvent(eventString);
+          if (event.type == 'done') return;
+          yield event;
+        }
+      }
+      
+      // 处理流结束后的残留 buffer
+      if (buffer.trim().isNotEmpty) {
+        final event = _parseEvent(buffer);
+        if (event.type != 'done') yield event;
+      }
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('网络错误: $e');
+    } finally {
+      client.close();
+    }
+  }
+
+  ChatStreamEvent _parseEvent(String eventString) {
+    final lines = eventString.split('\n');
+    String eventType = 'text';
+    String data = '';
+
+    for (final line in lines) {
+      if (line.startsWith('event: ')) {
+        eventType = line.substring(7).trim();
+      } else if (line.startsWith('data: ')) {
+        data = line.substring(6);
+      }
+    }
+
+    if (eventType == 'action_result') {
+      try {
+        final jsonData = json.decode(data);
+        return ChatStreamEvent(type: 'action_result', data: jsonData);
+      } catch (e) {
+        return ChatStreamEvent(type: 'text', text: '[解析动作失败]');
+      }
+    }
+    return ChatStreamEvent(type: eventType, text: data);
+  }
+
   Future<Map<String, dynamic>> recognizeFood(List<int> imageBytes) async {
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/food-analysis/recognize'));
@@ -318,4 +382,12 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class ChatStreamEvent {
+  final String type; // 'text', 'action_result', 'error', 'done'
+  final String? text;
+  final Map<String, dynamic>? data;
+
+  ChatStreamEvent({required this.type, this.text, this.data});
 }
