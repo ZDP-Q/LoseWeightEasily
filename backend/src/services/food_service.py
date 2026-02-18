@@ -1,59 +1,27 @@
-import faiss
-from typing import List
-from sentence_transformers import SentenceTransformer
+"""食物搜索服务，基于 Milvus 向量数据库。"""
 
-from ..repositories.food_repository import FoodRepository
-from ..schemas.food import FoodSearchResult
+
+from LoseWeightAgent.src.services.food_search import FoodSearchService
+from LoseWeightAgent.src.schemas import FoodNutritionSearchResult
 
 
 class FoodService:
-    def __init__(
+    """食物搜索服务（代理到 LoseWeightAgent 的 FoodSearchService）。"""
+
+    def __init__(self, food_search: FoodSearchService):
+        self.food_search = food_search
+
+    def search_by_text(
+        self, query: str, limit: int = 10
+    ) -> list[FoodNutritionSearchResult]:
+        """通过文本搜索食物。"""
+        return self.food_search.search_by_text(query, limit)
+
+    def search_by_image(
         self,
-        repository: FoodRepository,
-        model: SentenceTransformer,
-        index: faiss.Index,
-        metadata: List[int],
-    ):
-        self.repo = repository
-        self.model = model
-        self.index = index
-        self.metadata = metadata
-
-    def search_foods(self, query: str, limit: int = 10) -> List[FoodSearchResult]:
-        if self.index is None:
-            return []
-
-        query_vector = self.model.encode([query]).astype("float32")
-        distances, indices = self.index.search(query_vector, limit)
-
-        # 批量收集所有有效的 fdc_id，避免 N+1 查询
-        # metadata 可能包含 int (fdc_id) 或 dict {"fdc_id": ..., "description": ...}
-        valid_entries: list[tuple[float, int]] = []
-        for dist, idx in zip(distances[0], indices[0]):
-            if idx != -1 and idx < len(self.metadata):
-                entry = self.metadata[idx]
-                fdc_id = entry["fdc_id"] if isinstance(entry, dict) else entry
-                valid_entries.append((float(dist), fdc_id))
-
-        if not valid_entries:
-            return []
-
-        # 一次性批量查询所有食物详情
-        fdc_ids = [fdc_id for _, fdc_id in valid_entries]
-        details_map = self.repo.get_foods_simple_details(fdc_ids)
-
-        results = []
-        for dist, fdc_id in valid_entries:
-            detail = details_map.get(fdc_id)
-            if detail:
-                results.append(
-                    FoodSearchResult(
-                        fdc_id=fdc_id,
-                        description=detail["description"],
-                        category=detail["category"],
-                        calories_per_100g=detail["calories_per_100g"],
-                        similarity=1 - dist,
-                    )
-                )
-
-        return results
+        image_data: bytes,
+        limit: int = 10,
+        image_format: str = "jpeg",
+    ) -> list[FoodNutritionSearchResult]:
+        """通过图片搜索食物。"""
+        return self.food_search.search_by_image(image_data, limit, image_format)

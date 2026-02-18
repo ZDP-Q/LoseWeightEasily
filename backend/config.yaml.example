@@ -22,10 +22,11 @@ llm:
 database:
   url: "postgresql://postgres:password@localhost:5432/loss_weight"
 
-# FAISS 索引配置 (相对于运行目录，即 backend/)
-index:
-  file: "data/food_index.faiss"
-  metadata: "data/food_metadata.pkl"
+# Milvus 向量数据库配置
+milvus:
+  host: "127.0.0.1"
+  port: 19530
+  collection: "usda_foods"
 
 # 数据配置
 data:
@@ -35,11 +36,11 @@ data:
 # 搜索配置
 search:
   limit: 10
-  threshold: 0.3
 
 # 嵌入模型配置
 embedding:
-  model: "paraphrase-multilingual-MiniLM-L12-v2"
+  model: "qwen3-vl-embedding"
+  dimension: 1024
 
 # 日志配置
 logging:

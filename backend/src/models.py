@@ -1,6 +1,5 @@
-from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.orm import relationship
 
@@ -22,11 +21,11 @@ class FoodBase(SQLModel):
 
 class Food(FoodBase, table=True):
     __tablename__ = "foods"
-    nutrients: list["FoodNutrient"] = Relationship(
+    nutrients: List["FoodNutrient"] = Relationship(
         back_populates="food",
         sa_relationship=relationship("FoodNutrient", back_populates="food")
     )
-    portions: list["FoodPortion"] = Relationship(
+    portions: List["FoodPortion"] = Relationship(
         back_populates="food",
         sa_relationship=relationship("FoodPortion", back_populates="food")
     )
@@ -42,7 +41,7 @@ class NutrientBase(SQLModel):
 
 class Nutrient(NutrientBase, table=True):
     __tablename__ = "nutrients"
-    food_links: list["FoodNutrient"] = Relationship(
+    food_links: List["FoodNutrient"] = Relationship(
         back_populates="nutrient",
         sa_relationship=relationship("FoodNutrient", back_populates="nutrient")
     )
@@ -93,7 +92,7 @@ class WeightRecord(WeightRecordBase, table=True):
 
 
 class UserBase(SQLModel):
-    name: str
+    name: str = Field(index=True)  # Used as username
     age: int
     gender: str  # "Male", "Female", "Other"
     height_cm: float
@@ -109,3 +108,47 @@ class UserBase(SQLModel):
 class User(UserBase, table=True):
     __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)
+    
+    ingredients: List["Ingredient"] = Relationship(
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    food_recognitions: List["FoodRecognition"] = Relationship(
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    food_logs: List["FoodLog"] = Relationship(
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+
+class Ingredient(SQLModel, table=True):
+    __tablename__ = "ingredients"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    user: Optional[User] = Relationship(back_populates="ingredients")
+
+
+class FoodRecognition(SQLModel, table=True):
+    __tablename__ = "food_recognitions"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    image_path: str
+    food_name: str
+    calories: float
+    verification_status: Optional[str] = None
+    reason: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user: Optional[User] = Relationship(back_populates="food_recognitions")
+
+
+class FoodLog(SQLModel, table=True):
+    __tablename__ = "food_logs"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    food_name: str
+    calories: float
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user: Optional[User] = Relationship(back_populates="food_logs")

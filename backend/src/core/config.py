@@ -31,38 +31,19 @@ class DatabaseSettings(BaseModel):
     )
 
 
-class DataSettings(BaseModel):
-    dir: str = Field(default="data")
-    json_file: str = Field(
-        default="FoodData_Central_foundation_food_json_2025-12-18.json"
-    )
-
-    @property
-    def json_path(self) -> Path:
-        base_dir = Path(__file__).parent.parent.parent
-        return base_dir / self.dir / self.json_file
+class MilvusSettings(BaseModel):
+    host: str = Field(default="127.0.0.1")
+    port: int = Field(default=19530)
+    collection: str = Field(default="usda_foods")
 
 
-class IndexSettings(BaseModel):
-    file: str = Field(default="food_index.faiss")
-    metadata: str = Field(default="food_metadata.pkl")
-
-    @property
-    def index_path(self) -> Path:
-        return Path(__file__).parent.parent.parent / "data" / self.file
-
-    @property
-    def metadata_path(self) -> Path:
-        return Path(__file__).parent.parent.parent / "data" / self.metadata
-
-
-class EmbeddingSettings(BaseModel):
-    model: str = Field(default="paraphrase-multilingual-MiniLM-L12-v2")
+class EmbeddingModelSettings(BaseModel):
+    model: str = Field(default="qwen3-vl-embedding")
+    dimension: int = Field(default=1024)
 
 
 class SearchSettings(BaseModel):
     limit: int = Field(default=10)
-    threshold: float = Field(default=0.3)
 
 
 class LLMSettings(BaseModel):
@@ -93,9 +74,8 @@ class Settings(BaseSettings):
     )
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    data: DataSettings = Field(default_factory=DataSettings)
-    index: IndexSettings = Field(default_factory=IndexSettings)
-    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    milvus: MilvusSettings = Field(default_factory=MilvusSettings)
+    embedding: EmbeddingModelSettings = Field(default_factory=EmbeddingModelSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)

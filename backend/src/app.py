@@ -1,12 +1,9 @@
-import json
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-import faiss
 from fastapi import FastAPI, Depends
+from sqlmodel import Session
 from fastapi.middleware.cors import CORSMiddleware
-from sentence_transformers import SentenceTransformer
 
 from .api import food, meal_plan, user, weight, food_analysis, chat
 from .core.config import get_settings
@@ -19,34 +16,46 @@ logger = logging.getLogger("loseweight.app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: 初始化日志、数据库、模型和索引
+    # Startup: 初始化日志、数据库、Milvus、LoseWeightAgent
     setup_logging()
-    logger.info("正在加载 Embedding 模型和 FAISS 索引...")
 
     # Initialize DB
-    from .core.database import init_db
+    from .core.database import init_db, engine
 
     init_db()
 
-    # Load SentenceTransformer
-    app.state.embedding_model = SentenceTransformer(settings.embedding.model)
+    # 初始化向量检索服务
+    try:
+        from LoseWeightAgent.src.services.embedding_service import EmbeddingService
+        from LoseWeightAgent.src.services.milvus_manager import MilvusManager
+        from LoseWeightAgent.src.services.food_search import FoodSearchService
 
-    # Load FAISS index and metadata (使用 JSON 代替 pickle)
-    index_path = settings.index.index_path
-    metadata_path = settings.index.metadata_path
-
-    if index_path.exists() and metadata_path.exists():
-        app.state.food_index = faiss.read_index(str(index_path))
-        app.state.food_metadata = _load_metadata(metadata_path)
-        logger.info("FAISS 索引加载成功。")
-    else:
-        app.state.food_index = None
-        app.state.food_metadata = None
-        logger.warning(
-            "找不到索引文件 %s 或 %s。搜索功能将不可用。",
-            index_path,
-            metadata_path,
+        embedding_service = EmbeddingService(
+            api_key=settings.llm.api_key,
+            model=settings.embedding.model,
+            dimension=settings.embedding.dimension,
         )
+
+        milvus_manager = MilvusManager(
+            host=settings.milvus.host,
+            port=settings.milvus.port,
+            collection_name=settings.milvus.collection,
+            vector_dim=settings.embedding.dimension,
+        )
+
+        app.state.food_search = FoodSearchService(
+            embedding_service=embedding_service,
+            milvus_manager=milvus_manager,
+        )
+        logger.info(
+            "食物检索服务初始化成功 (Milvus=%s:%d, model=%s)",
+            settings.milvus.host,
+            settings.milvus.port,
+            settings.embedding.model,
+        )
+    except Exception as e:
+        app.state.food_search = None
+        logger.error("食物检索服务初始化失败: %s", e)
 
     # 初始化 LoseWeightAgent（AI 功能核心）
     try:
@@ -56,6 +65,12 @@ async def lifespan(app: FastAPI):
             api_key=settings.llm.api_key,
             base_url=settings.llm.base_url,
             model=settings.llm.model,
+            milvus_host=settings.milvus.host,
+            milvus_port=settings.milvus.port,
+            milvus_collection=settings.milvus.collection,
+            embedding_model=settings.embedding.model,
+            embedding_dimension=settings.embedding.dimension,
+            session_factory=lambda: Session(engine),
         )
         app.state.agent = agent
         logger.info("LoseWeightAgent 初始化成功 (model=%s)", settings.llm.model)
@@ -67,35 +82,6 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("正在关闭应用...")
-
-
-def _load_metadata(metadata_path: Path) -> list[int]:
-    """安全加载 metadata，优先使用 JSON，兼容旧版 pickle。"""
-    json_path = metadata_path.with_suffix(".json")
-
-    # 优先读 JSON
-    if json_path.exists():
-        with open(json_path, encoding="utf-8") as f:
-            return json.load(f)
-
-    # 兼容旧版 pickle（加日志警告）
-    import pickle  # noqa: S403
-
-    logger.warning(
-        "使用 pickle 加载 metadata (%s)，建议迁移到 JSON 格式。", metadata_path
-    )
-    with open(metadata_path, "rb") as f:
-        data = pickle.load(f)  # noqa: S301
-
-    # 自动创建 JSON 副本以供下次使用
-    try:
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-        logger.info("已自动将 metadata 转换为 JSON 格式: %s", json_path)
-    except Exception:
-        logger.warning("自动转换 JSON 失败，将在下次启动时重试。")
-
-    return data
 
 
 app = FastAPI(

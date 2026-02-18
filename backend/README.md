@@ -7,8 +7,8 @@
 - **框架**: [FastAPI](https://fastapi.tiangolo.com/)
 - **数据库 ORM**: [SQLModel](https://sqlmodel.tiangolo.com/) (结合了 SQLAlchemy 和 Pydantic)
 - **数据库**: PostgreSQL
-- **语义搜索**: [FAISS](https://github.com/facebookresearch/faiss) (向量索引)
-- **嵌入模型**: `paraphrase-multilingual-MiniLM-L12-v2` (Sentence-Transformers)
+- **语义搜索**: [Milvus](https://milvus.io/) (向量数据库)
+- **嵌入模型**: `qwen3-vl-embedding` (DashScope / Qwen)
 - **包管理**: [uv](https://github.com/astral-sh/uv)
 - **代码规范**: [Ruff](https://github.com/astral-sh/ruff)
 
@@ -59,7 +59,7 @@ uv run uvicorn src.app:app --reload
 
 ## 🔍 语义搜索说明
 
-系统启动时会自动加载 `data/` 目录下的 USDA 数据集，并使用 `Sentence-Transformers` 生成向量。向量索引存储在内存中（FAISS），通过余弦相似度实现中英文跨语言的食物搜索。
+系统使用 **Milvus** 作为向量存储中心，通过 **DashScope (Qwen)** 的嵌入模型将食物描述转换为高维向量。通过余弦相似度实现中英文跨语言的食物检索，支持文本搜索和图片识别搜索。
 
 ## 🧪 代码检查
 
