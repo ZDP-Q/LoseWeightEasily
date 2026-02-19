@@ -34,6 +34,9 @@ class MealPlannerService:
             raise MealPlanError(
                 f"食材数量不能超过 {MAX_INGREDIENTS} 种。", status_code=422
             )
+            raise MealPlanError(
+                f"食材数量不能超过 {MAX_INGREDIENTS} 种。", status_code=422
+            )
 
         try:
             result = await self.agent.plan_meals_direct(
@@ -48,7 +51,11 @@ class MealPlannerService:
                 )
 
             # 将 Agent 的 DailyMealPlan 转换为后端的 MealPlanResponse
-            return MealPlanResponse.model_validate(result.model_dump())
+            # 兼容 result 是字典或 Pydantic 模型的情况
+            result_data = (
+                result.model_dump() if hasattr(result, "model_dump") else result
+            )
+            return MealPlanResponse.model_validate(result_data)
 
         except MealPlanError:
             raise

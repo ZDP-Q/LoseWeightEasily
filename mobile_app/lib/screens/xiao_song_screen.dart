@@ -134,17 +134,10 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     try {
       final apiService = context.read<ApiService>();
       
-      // 简单判断是否是单纯的生成食谱请求
-      if (text.contains(',') || text.contains('，') || (text.length < 10 && (text.contains('菜') || text.contains('肉')) && !text.contains('吗'))) {
-        final plan = await apiService.generateMealPlan(ingredients: text.split(RegExp(r'[,，\s]+')));
-        setState(() {
-          _messages.last = ChatMessage(text: _formatMealPlan(plan), isUser: false, isStreaming: false);
-        });
-        _scrollToBottom();
-      } else {
-        // 传入当前最后一条消息索引以便 _streamChat 更新它
-        await _streamChat(apiService, text, _messages.length - 1);
-      }
+      // 移除武断的前端分流，统一交给流式聊天处理。
+      // 后端的 LoseWeightAgent 会自动识别意图（是查热量、聊天还是生成食谱）。
+      await _streamChat(apiService, text, _messages.length - 1);
+      
     } catch (e) {
       setState(() {
         _messages.last = ChatMessage(text: '抱歉，出错了: $e', isUser: false, isStreaming: false);
@@ -255,7 +248,12 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final XFile? image = await _picker.pickImage(source: source);
+    final XFile? image = await _picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
     if (!mounted || image == null) return;
 
     _addSystemMessage('📷 正在分析食物图片...');

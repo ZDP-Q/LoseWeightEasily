@@ -10,7 +10,7 @@ class ApiService {
     'API_BASE_URL',
     defaultValue: 'http://xiaosong.fucku.top',
   );
-  static const Duration _timeout = Duration(seconds: 10);
+  static const Duration _timeout = Duration(seconds: 30);
 
   static const String apiKey = String.fromEnvironment('API_KEY');
 
@@ -186,7 +186,7 @@ class ApiService {
               'dietary_restrictions': restrictions ?? '',
             }),
           )
-          .timeout(const Duration(seconds: 60)); // AI 生成需要更长超时
+          .timeout(const Duration(seconds: 120)); // AI 生成需要更长超时
       if (response.statusCode == 200) {
         return json.decode(utf8.decode(response.bodyBytes));
       }
@@ -298,7 +298,7 @@ class ApiService {
         filename: 'food.jpg',
       ));
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
