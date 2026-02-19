@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -8,6 +9,8 @@ from sqlmodel import Session
 from ..core.database import get_session
 from ..repositories.user_repository import UserRepository
 from ..services.user_service import UserService
+
+logger = logging.getLogger("loseweight.api.chat")
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -93,19 +96,23 @@ async def chat_stream(
                     data = json.dumps(data, ensure_ascii=False)
                 elif event_type == "done":
                     data = ""
-
+                
+                # 确保每一行都以 \n 结尾，整个事件以 \n\n 结尾
                 yield f"event: {event_type}\ndata: {data}\n\n"
         except Exception as e:
+            logger.error(f"流式响应生成出错: {e}")
             yield f"event: error\ndata: {str(e)}\n\n"
         finally:
+            # 确保即使出错也发送 done 事件
             yield "event: done\ndata: \n\n"
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
+            "X-Accel-Buffering": "no",  # 针对 Nginx/FRP
+            "Content-Type": "text/event-stream",
         },
     )

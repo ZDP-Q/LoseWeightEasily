@@ -11,13 +11,14 @@ from .core.logging import setup_logging
 from .core.security import verify_api_key
 
 settings = get_settings()
+# 立即初始化日志配置
+setup_logging()
 logger = logging.getLogger("loseweight.app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: 初始化日志、数据库、Milvus、LoseWeightAgent
-    setup_logging()
+    # Startup: 初始化数据库、Milvus、LoseWeightAgent
 
     # Initialize DB
     from .core.database import init_db, engine

@@ -49,7 +49,7 @@ class SearchSettings(BaseModel):
 class LLMSettings(BaseModel):
     api_key: str = Field(default="")
     base_url: str = Field(default="https://dashscope.aliyuncs.com/compatible-mode/v1")
-    model: str = Field(default="qwen-plus")
+    model: str = Field(default="qwen3.5-plus")
 
 
 class SecuritySettings(BaseModel):
