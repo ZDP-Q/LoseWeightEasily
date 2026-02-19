@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/weight_provider.dart';
+import '../providers/food_log_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/bmr_calculator.dart';
 import '../widgets/glass_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -27,40 +29,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _refreshData();
   }
 
-  @override
-  void dispose() {
-    // 这里的 context 访问可能不安全，但在 Provider 结构中通常可行。
-    // 更好的做法是在 MainScreen 或通过其他方式管理回调。
-    super.dispose();
-  }
-
   Future<void> _refreshData() async {
     if (!mounted) return;
-    context.read<UserProvider>().loadUser();
-    context.read<WeightProvider>().loadHistory();
+    await Future.wait([
+      context.read<UserProvider>().loadUser(),
+      context.read<WeightProvider>().loadHistory(),
+      context.read<FoodLogProvider>().loadTodayLogs(),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(context),
-                const SizedBox(height: 24),
-                _buildSummaryCards(context),
-                const SizedBox(height: 24),
-                _buildWeightChart(context),
-                const SizedBox(height: 24),
-                _buildAICoachEntry(context),
-              ],
-            ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 16),
+              _buildSummaryCards(context),
+              const SizedBox(height: 16),
+              _buildWeightChart(context),
+              const SizedBox(height: 16),
+              Expanded(child: _buildFoodLogTable(context)),
+            ],
           ),
         ),
       ),
@@ -70,33 +64,131 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildHeader(BuildContext context) {
     final userProvider = context.watch<UserProvider>();
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               '你好, ${userProvider.displayName}',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const Text('今天也是元气满满的一天 🌟', 
-                style: TextStyle(color: AppColors.textSecondary)),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ],
         ),
-        const Spacer(),
-        const CircleAvatar(
-          radius: 24,
-          backgroundColor: AppColors.primary,
-          child: Icon(Icons.person, color: Colors.white),
+        _buildHeaderAction(
+          icon: FontAwesomeIcons.plus,
+          label: '记录体重',
+          onTap: () => _showWeightInputDialog(context),
         ),
       ],
     ).animate().fadeIn().slideX();
+  }
+
+  Widget _buildHeaderAction({required IconData icon, required String label, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13, 
+                fontWeight: FontWeight.bold, 
+                color: AppColors.primary
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWeightInputDialog(BuildContext context) {
+     showDialog(
+       context: context,
+       builder: (context) {
+         final controller = TextEditingController();
+         return AlertDialog(
+           title: const Text('记录今日体重'),
+           content: TextField(
+             controller: controller,
+             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+             decoration: const InputDecoration(
+               labelText: '当前体重 (kg)', 
+               hintText: '例如: 65.5',
+               suffixText: 'kg'
+             ),
+             autofocus: true,
+           ),
+           actions: [
+             TextButton(
+               onPressed: () => Navigator.pop(context), 
+               child: const Text('取消', style: TextStyle(color: AppColors.textSecondary))
+             ),
+             ElevatedButton(
+               onPressed: () async {
+                 final weightStr = controller.text.trim();
+                 if (weightStr.isNotEmpty) {
+                   final weight = double.tryParse(weightStr);
+                   if (weight != null) {
+                     Navigator.pop(context);
+                     try {
+                       await context.read<WeightProvider>().addRecord(weight);
+                       if (context.mounted) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text('体重记录成功！'), backgroundColor: Colors.green),
+                         );
+                       }
+                     } catch (e) {
+                       if (context.mounted) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           SnackBar(content: Text('记录失败: $e'), backgroundColor: Colors.red),
+                         );
+                       }
+                     }
+                   }
+                 }
+               },
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: AppColors.primary,
+                 foregroundColor: Colors.white,
+               ),
+               child: const Text('保存记录'),
+             ),
+           ],
+         );
+       },
+     );
   }
 
   Widget _buildSummaryCards(BuildContext context) {
     final weightProvider = context.watch<WeightProvider>();
     final userProvider = context.watch<UserProvider>();
     final currentWeight = weightProvider.latestWeight ?? (userProvider.user?.initialWeightKg ?? 0);
-    final goal = userProvider.dailyCalorieGoal ?? 0;
+    
+    // 修复目标摄入计算：基于目标体重计算 TDEE
+    double targetGoal = 0;
+    final user = userProvider.user;
+    if (user != null) {
+      final bmr = BmrCalculator.calculateBmr(
+        weight: user.targetWeightKg,
+        height: user.heightCm,
+        age: user.age,
+        gender: user.gender,
+      );
+      targetGoal = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+    }
 
     return Row(
       children: [
@@ -109,11 +201,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Colors.blue,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: _buildInfoCard(
             '目标摄入',
-            goal.toStringAsFixed(0),
+            targetGoal.toStringAsFixed(0),
             'kcal',
             FontAwesomeIcons.fire,
             Colors.orange,
@@ -125,23 +217,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildInfoCard(String title, String value, String unit, IconData icon, Color color) {
     return GlassCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 12),
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(width: 4),
-              Text(unit, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text(unit, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -149,43 +241,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildWeightChart(BuildContext context) {
     final weightProvider = context.watch<WeightProvider>();
-    // 反转历史记录，使其按时间顺序从左到右显示
     final history = weightProvider.records.reversed.toList();
+    final hintColor = Theme.of(context).hintColor;
 
     if (history.isEmpty) {
       return const GlassCard(
-        height: 200,
+        height: 140,
         child: Center(child: Text('暂无体重数据')),
       );
     }
 
-    // 转换为图表点
-    final spots = history.asMap().entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value.weightKg);
-    }).toList();
+    DateTime normalizeDate(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+    final firstDate = normalizeDate(history.first.recordedAt);
 
-    // 计算 Y 轴范围
-    double minY = history.map((e) => e.weightKg).reduce((a, b) => a < b ? a : b) - 2;
-    double maxY = history.map((e) => e.weightKg).reduce((a, b) => a > b ? a : b) + 2;
+    Map<int, List<double>> groupedByDay = {};
+    for (var record in history) {
+      final dayOffset = normalizeDate(record.recordedAt).difference(firstDate).inDays;
+      groupedByDay.putIfAbsent(dayOffset, () => []).add(record.weightKg);
+    }
+
+    List<FlSpot> maxSpots = [];
+    List<FlSpot> minSpots = [];
+    var sortedDays = groupedByDay.keys.toList()..sort();
+    for (var day in sortedDays) {
+      var weights = groupedByDay[day]!;
+      double maxW = weights.reduce((a, b) => a > b ? a : b);
+      double minW = weights.reduce((a, b) => a < b ? a : b);
+      maxSpots.add(FlSpot(day.toDouble(), maxW));
+      minSpots.add(FlSpot(day.toDouble(), minW));
+    }
+
+    double rawMinY = history.map((e) => e.weightKg).reduce((a, b) => a < b ? a : b);
+    double rawMaxY = history.map((e) => e.weightKg).reduce((a, b) => a > b ? a : b);
+    
+    double minY = (rawMinY - 1).floorToDouble();
+    double maxY = (rawMaxY + 2).ceilToDouble();
     if (minY < 0) minY = 0;
+    
+    double yInterval = ((maxY - minY) / 5).clamp(1.0, 20.0);
+
+    double minX = sortedDays.first.toDouble();
+    double maxX = sortedDays.last.toDouble();
+    
+    if (minX == maxX) {
+      minX -= 0.5;
+      maxX += 0.5;
+    } else {
+      double delta = (maxX - minX) * 0.05;
+      if (delta < 0.2) delta = 0.2;
+      minX -= delta;
+      maxX += delta;
+    }
 
     return GlassCard(
-      padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
+      padding: const EdgeInsets.fromLTRB(12, 16, 24, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('体重曲线', style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('单位: kg', style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.5))),
+              const Text('体重曲线', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  _buildLegendItem('最高', AppColors.accent),
+                  const SizedBox(width: 8),
+                  _buildLegendItem('最低', AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text('单位: kg', style: TextStyle(fontSize: 9, color: hintColor.withValues(alpha: 0.5))),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           SizedBox(
-            height: 180,
+            height: 140,
             child: LineChart(
               LineChartData(
+                minX: minX,
+                maxX: maxX,
                 minY: minY,
                 maxY: maxY,
                 gridData: FlGridData(
@@ -203,31 +337,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 22,
-                      interval: (history.length / 5).clamp(1, 10).toDouble(),
+                      reservedSize: 24,
+                      interval: ((maxX - minX) / 4).clamp(1.0, 30.0),
                       getTitlesWidget: (value, meta) {
-                        int index = value.toInt();
-                        if (index >= 0 && index < history.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              DateFormat('MM/dd').format(history[index].recordedAt),
-                              style: const TextStyle(fontSize: 9, color: AppColors.textSecondary),
-                            ),
-                          );
+                        final date = firstDate.add(Duration(days: value.toInt()));
+                        if (value < sortedDays.first || value > sortedDays.last) {
+                          return const SizedBox();
                         }
-                        return const SizedBox();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            DateFormat('MM/dd').format(date),
+                            style: TextStyle(fontSize: 8, color: hintColor),
+                          ),
+                        );
                       },
                     ),
                   ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 32,
+                      reservedSize: 36,
+                      interval: yInterval,
                       getTitlesWidget: (value, meta) {
+                        if (value < minY + (yInterval * 0.2)) {
+                          return const SizedBox();
+                        }
+                        if (value > maxY - (yInterval * 0.2)) {
+                          return const SizedBox();
+                        }
                         return Text(
-                          value.toStringAsFixed(0),
-                          style: const TextStyle(fontSize: 9, color: AppColors.textSecondary),
+                          value.toStringAsFixed(1),
+                          style: TextStyle(fontSize: 8, color: hintColor),
                         );
                       },
                     ),
@@ -236,18 +377,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: spots,
+                    spots: maxSpots,
                     isCurved: true,
-                    curveSmoothness: 0.3,
-                    color: AppColors.primary,
-                    barWidth: 3,
+                    preventCurveOverShooting: true,
+                    color: AppColors.accent,
+                    barWidth: 2,
                     isStrokeCapRound: true,
                     dotData: FlDotData(
                       show: true,
                       getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                        radius: 3,
+                        radius: 2.5,
                         color: Colors.white,
-                        strokeWidth: 2,
+                        strokeWidth: 1.5,
+                        strokeColor: AppColors.accent,
+                      ),
+                    ),
+                  ),
+                  LineChartBarData(
+                    spots: minSpots,
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: AppColors.primary,
+                    barWidth: 2,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 2.5,
+                        color: Colors.white,
+                        strokeWidth: 1.5,
                         strokeColor: AppColors.primary,
                       ),
                     ),
@@ -257,7 +415,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          AppColors.primary.withValues(alpha: 0.2),
+                          AppColors.primary.withValues(alpha: 0.15),
                           AppColors.primary.withValues(alpha: 0.0),
                         ],
                       ),
@@ -272,35 +430,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ).animate().fadeIn(delay: 400.ms);
   }
 
-  Widget _buildAICoachEntry(BuildContext context) {
-    return GlassCard(
-      padding: EdgeInsets.zero,
-      color: AppColors.primary.withValues(alpha: 0.1),
-      child: InkWell(
-        onTap: () => context.read<NavigationProvider>().switchTab(1),
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                backgroundColor: AppColors.primary,
-                child: Icon(FontAwesomeIcons.tree, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('对话小松 AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('为你开食谱、识别热量或答疑解惑', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-            ],
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
           ),
         ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 9, color: Theme.of(context).hintColor),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFoodLogTable(BuildContext context) {
+    final foodLogProvider = context.watch<FoodLogProvider>();
+    final logs = foodLogProvider.todayLogs;
+    final total = foodLogProvider.totalCalories;
+
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('今日摄入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('${total.toStringAsFixed(0)} kcal', 
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  const Text('总摄入量', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                ],
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshData,
+              child: logs.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Text('今日暂无饮食记录', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: logs.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border, indent: 0),
+                      itemBuilder: (context, index) {
+                        final log = logs[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            children: [
+                              const Icon(FontAwesomeIcons.utensils, size: 13, color: AppColors.primary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(log.foodName, style: const TextStyle(fontSize: 14)),
+                              ),
+                              Text('${log.calories.toStringAsFixed(0)} kcal', 
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
       ),
     ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2, end: 0);
   }

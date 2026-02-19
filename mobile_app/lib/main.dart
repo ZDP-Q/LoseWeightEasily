@@ -8,6 +8,8 @@ import 'providers/user_provider.dart';
 import 'providers/weight_provider.dart';
 import 'providers/meal_plan_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/food_log_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/main_screen.dart';
 import 'utils/theme.dart';
 
@@ -39,6 +41,14 @@ void main() {
         ChangeNotifierProxyProvider<ApiService, MealPlanProvider>(
           create: (ctx) => MealPlanProvider(ctx.read<ApiService>()),
           update: (_, api, prev) => prev ?? MealPlanProvider(api),
+        ),
+        ChangeNotifierProxyProvider<ApiService, FoodLogProvider>(
+          create: (ctx) => FoodLogProvider(ctx.read<ApiService>()),
+          update: (_, api, prev) => prev ?? FoodLogProvider(api),
+        ),
+        ChangeNotifierProxyProvider<ApiService, ChatProvider>(
+          create: (ctx) => ChatProvider(ctx.read<ApiService>()),
+          update: (_, api, prev) => prev ?? ChatProvider(api),
         ),
       ],
       child: const XiaoSongApp(),

@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/weight_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/bmr_calculator.dart';
 import '../widgets/glass_card.dart';
 
 class UserScreen extends StatefulWidget {
@@ -18,26 +20,34 @@ class _UserScreenState extends State<UserScreen> {
   @override
   Widget build(BuildContext context) {
     final userProvider = context.watch<UserProvider>();
+    final weightProvider = context.watch<WeightProvider>();
     final themeProvider = context.watch<ThemeProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('个人中心')),
       body: userProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _buildProfileHeader(userProvider),
-                  const SizedBox(height: 24),
-                  _buildInfoSection(context, userProvider),
-                  const SizedBox(height: 24),
-                  _buildGoalSection(context, userProvider),
-                  const SizedBox(height: 24),
-                  _buildSettingsSection(context, themeProvider),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(context),
-                ],
+          : RefreshIndicator(
+              onRefresh: () async {
+                await userProvider.loadUser();
+                await weightProvider.loadHistory();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    _buildProfileHeader(userProvider),
+                    const SizedBox(height: 24),
+                    _buildInfoSection(context, userProvider),
+                    const SizedBox(height: 24),
+                    _buildGoalSection(context, userProvider, weightProvider),
+                    const SizedBox(height: 24),
+                    _buildSettingsSection(context, themeProvider),
+                    const SizedBox(height: 32),
+                    _buildActionButtons(context),
+                  ],
+                ),
               ),
             ),
     );
@@ -47,7 +57,7 @@ class _UserScreenState extends State<UserScreen> {
     return Column(
       children: [
         GestureDetector(
-          onTap: () => _showEditDialog(context, provider, 'name', '修改姓名'),
+          onTap: () => _showEditDialog(context, provider, null, 'name', '修改姓名'),
           child: const CircleAvatar(
             radius: 50,
             backgroundColor: AppColors.primary,
@@ -56,7 +66,7 @@ class _UserScreenState extends State<UserScreen> {
         ),
         const SizedBox(height: 16),
         InkWell(
-          onTap: () => _showEditDialog(context, provider, 'name', '修改姓名'),
+          onTap: () => _showEditDialog(context, provider, null, 'name', '修改姓名'),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -93,7 +103,7 @@ class _UserScreenState extends State<UserScreen> {
                 '年龄',
                 '${provider.user?.age ?? "--"} 岁',
                 FontAwesomeIcons.calendar,
-                () => _showEditDialog(context, provider, 'age', '修改年龄'),
+                () => _showEditDialog(context, provider, null, 'age', '修改年龄'),
               ),
               _buildDivider(),
               _buildListTile(
@@ -101,7 +111,7 @@ class _UserScreenState extends State<UserScreen> {
                 '身高',
                 '${provider.user?.heightCm ?? "--"} cm',
                 FontAwesomeIcons.arrowsUpDown,
-                () => _showEditDialog(context, provider, 'height_cm', '修改身高'),
+                () => _showEditDialog(context, provider, null, 'height_cm', '修改身高'),
               ),
               _buildDivider(),
               _buildListTile(
@@ -118,7 +128,36 @@ class _UserScreenState extends State<UserScreen> {
     );
   }
 
-  Widget _buildGoalSection(BuildContext context, UserProvider provider) {
+  Widget _buildGoalSection(BuildContext context, UserProvider provider, WeightProvider weightProvider) {
+    final user = provider.user;
+    final currentWeight = weightProvider.latestWeight ?? user?.initialWeightKg;
+    final targetWeight = user?.targetWeightKg;
+
+    double? currentTdee;
+    double? targetTdee;
+
+    if (user != null) {
+      if (currentWeight != null) {
+        final bmr = BmrCalculator.calculateBmr(
+          weight: currentWeight,
+          height: user.heightCm,
+          age: user.age,
+          gender: user.gender,
+        );
+        currentTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+      }
+
+      if (targetWeight != null) {
+        final bmr = BmrCalculator.calculateBmr(
+          weight: targetWeight,
+          height: user.heightCm,
+          age: user.age,
+          gender: user.gender,
+        );
+        targetTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -131,10 +170,18 @@ class _UserScreenState extends State<UserScreen> {
             children: [
               _buildListTile(
                 context,
+                '当前体重',
+                '${currentWeight?.toStringAsFixed(1) ?? "--"} kg',
+                FontAwesomeIcons.weightScale,
+                () => _showEditDialog(context, provider, weightProvider, 'current_weight', '记录当前体重'),
+              ),
+              _buildDivider(),
+              _buildListTile(
+                context,
                 '目标体重',
-                '${provider.user?.targetWeightKg ?? "--"} kg',
+                '${targetWeight?.toStringAsFixed(1) ?? "--"} kg',
                 FontAwesomeIcons.bullseye,
-                () => _showEditDialog(context, provider, 'target_weight_kg', '修改目标体重'),
+                () => _showEditDialog(context, provider, weightProvider, 'target_weight_kg', '修改目标体重'),
               ),
               _buildDivider(),
               _buildListTile(
@@ -147,9 +194,17 @@ class _UserScreenState extends State<UserScreen> {
               _buildDivider(),
               _buildListTile(
                 context,
-                'TDEE',
-                '${provider.user?.tdee?.toStringAsFixed(0) ?? "--"} kcal',
+                '当前 TDEE',
+                '${currentTdee?.toStringAsFixed(0) ?? "--"} kcal',
                 FontAwesomeIcons.bolt,
+                null,
+              ),
+              _buildDivider(),
+              _buildListTile(
+                context,
+                '目标 TDEE',
+                '${targetTdee?.toStringAsFixed(0) ?? "--"} kcal',
+                FontAwesomeIcons.flagCheckered,
                 null,
               ),
             ],
@@ -159,14 +214,17 @@ class _UserScreenState extends State<UserScreen> {
     );
   }
 
-  void _showEditDialog(BuildContext context, UserProvider provider, String field, String title) {
+  void _showEditDialog(BuildContext context, UserProvider provider, WeightProvider? weightProvider, String field, String title) {
     final controller = TextEditingController();
     String? currentVal;
 
-    if (field == 'name') currentVal = provider.user!.name;
-    if (field == 'age') currentVal = provider.user!.age.toString();
-    if (field == 'height_cm') currentVal = provider.user!.heightCm.toString();
-    if (field == 'target_weight_kg') currentVal = provider.user!.targetWeightKg.toString();
+    if (field == 'name') currentVal = provider.user?.name;
+    if (field == 'age') currentVal = provider.user?.age.toString();
+    if (field == 'height_cm') currentVal = provider.user?.heightCm.toString();
+    if (field == 'target_weight_kg') currentVal = provider.user?.targetWeightKg.toString();
+    if (field == 'current_weight') {
+      currentVal = weightProvider?.latestWeight?.toString() ?? provider.user?.initialWeightKg.toString();
+    }
 
     controller.text = currentVal ?? '';
 
@@ -178,15 +236,22 @@ class _UserScreenState extends State<UserScreen> {
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: '请输入新的$title'),
-          keyboardType: field == 'name' ? TextInputType.text : TextInputType.number,
+          keyboardType: field == 'name' ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           ElevatedButton(
             onPressed: () async {
               try {
-                final newUser = _applyUpdate(provider.user!, field, controller.text);
-                await provider.updateUser(newUser);
+                if (field == 'current_weight') {
+                  final val = double.tryParse(controller.text);
+                  if (val != null && weightProvider != null) {
+                    await weightProvider.addRecord(val);
+                  }
+                } else if (provider.user != null) {
+                  final newUser = _applyUpdate(provider.user!, field, controller.text);
+                  await provider.updateUser(newUser);
+                }
                 if (context.mounted) Navigator.pop(context);
               } catch (e) {
                 if (context.mounted) {
@@ -245,8 +310,10 @@ class _UserScreenState extends State<UserScreen> {
 
   Future<void> _updateSimpleField(BuildContext context, UserProvider provider, String field, String value) async {
     try {
-      final newUser = _applyUpdate(provider.user!, field, value);
-      await provider.updateUser(newUser);
+      if (provider.user != null) {
+        final newUser = _applyUpdate(provider.user!, field, value);
+        await provider.updateUser(newUser);
+      }
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
       if (context.mounted) {

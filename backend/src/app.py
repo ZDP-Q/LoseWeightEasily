@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends
 from sqlmodel import Session
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import food, meal_plan, user, weight, food_analysis, chat
+from .api import food, meal_plan, user, weight, food_analysis, chat, food_log
 from .core.config import get_settings
 from .core.logging import setup_logging
 from .core.security import verify_api_key
@@ -109,6 +109,7 @@ app.include_router(weight.router)
 app.include_router(user.router)
 app.include_router(food_analysis.router)
 app.include_router(chat.router)
+app.include_router(food_log.router)
 
 
 @app.get("/health", tags=["health"])
@@ -119,4 +120,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=16666)

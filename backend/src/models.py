@@ -121,6 +121,10 @@ class User(UserBase, table=True):
         back_populates="user", 
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+    chat_messages: List["ChatMessage"] = Relationship(
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class Ingredient(SQLModel, table=True):
@@ -152,3 +156,20 @@ class FoodLog(SQLModel, table=True):
     calories: float
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     user: Optional[User] = Relationship(back_populates="food_logs")
+
+
+class ChatMessage(SQLModel, table=True):
+    __tablename__ = "chat_messages"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    role: str  # "user" or "assistant"
+    content: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    user: Optional[User] = Relationship(back_populates="chat_messages")
+
+
+# Update User model to include chat_messages relationship
+# (Since I cannot easily re-read the User class and replace it perfectly without risks, 
+# I will use a separate replacement for User class if needed, 
+# but SQLModel/SQLAlchemy will pick up the relationship if I add it to User)

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/food.dart';
+import '../models/food_log.dart';
 import '../models/user.dart';
 import '../models/weight_record.dart';
 
@@ -36,6 +37,49 @@ class ApiService {
         return data.map((j) => FoodSearchResult.fromJson(j)).toList();
       }
       throw ApiException('搜索失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Food Logs
+  // ---------------------------------------------------------------------------
+  Future<List<FoodLog>> getTodayFoodLogs() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/food-logs/today'), headers: _headers)
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        return data.map((j) => FoodLog.fromJson(j)).toList();
+      }
+      throw ApiException('获取饮食记录失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  Future<FoodLog> addFoodLog(String foodName, double calories) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/food-logs'),
+            headers: _headers,
+            body: json.encode({
+              'food_name': foodName,
+              'calories': calories,
+            }),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return FoodLog.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('记录饮食失败 (${response.statusCode})');
     } on TimeoutException {
       throw ApiException('请求超时，请检查网络连接');
     } on http.ClientException {
@@ -217,6 +261,23 @@ class ApiService {
       throw ApiException('对话失败 (${response.statusCode})');
     } on TimeoutException {
       throw ApiException('AI 响应超时');
+    } on http.ClientException {
+      throw ApiException('网络连接失败');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getChatHistory() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/chat/history'), headers: _headers)
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        return data.cast<Map<String, dynamic>>();
+      }
+      throw ApiException('获取聊天历史失败 (${response.statusCode})');
+    } on TimeoutException {
+      throw ApiException('请求超时，请检查网络连接');
     } on http.ClientException {
       throw ApiException('网络连接失败');
     }
