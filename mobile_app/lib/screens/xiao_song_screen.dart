@@ -38,8 +38,10 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
 2. 📸 **拍食物**：点击相机图标拍照，我帮你估算卡路里。
 3. 💬 **问建议**：直接提问关于减重的问题。''');
           }
-          _scrollToBottom();
+          _scrollToBottom(isInitial: true);
         });
+      } else {
+        _scrollToBottom(isInitial: true);
       }
     });
   }
@@ -89,14 +91,24 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     });
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool isInitial = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        if (isInitial) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          // 再次确认高度，防止首帧加载未完成
+          Future.delayed(const Duration(milliseconds: 50), () {
+            if (_scrollController.hasClients) {
+              _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+            }
+          });
+        } else {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       }
     });
   }
@@ -422,72 +434,211 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     );
   }
 
+  String _sanitizeMarkdown(String text) {
+    if (text.isEmpty) return text;
+
+    // 1. 基础清理：移除可能导致渲染错误的特殊不可见字符，保留换行
+    var sanitized = text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+
+    // 2. 增强型块级隔离 (Block Isolation)
+    // 确保列表、标题、表格、代码块、引用块与上方文字至少有两个换行符
+    final blockElements = [
+      r'#+',           // 标题
+      r'[-*+]',        // 无序列表
+      r'\d+\.',        // 有序列表
+      r'\|',           // 表格
+      r'```',          // 代码块
+      r'>',            // 引用
+      r'---',          // 分隔线
+    ];
+
+    for (var element in blockElements) {
+      sanitized = sanitized.replaceAllMapped(
+        RegExp('([^\\n])\\n\\s*($element)'),
+        (match) => '${match.group(1)}\n\n${match.group(2)}',
+      );
+    }
+
+    // 3. 行级处理 (Line-by-line Repair)
+    final lines = sanitized.split('\n');
+    final repairedLines = <String>[];
+    
+    bool inCodeBlock = false;
+    bool inTable = false;
+    int tablePipes = 0;
+    bool hasTableSeparator = false;
+
+    for (int i = 0; i < lines.length; i++) {
+      String line = lines[i];
+      final trimmed = line.trim();
+
+      // --- 代码块处理 ---
+      if (trimmed.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+      }
+
+      // --- 表格处理 ---
+      if (!inCodeBlock) {
+        if (trimmed.contains('|')) {
+          final currentPipes = RegExp(r'\|').allMatches(trimmed).length;
+          
+          if (!inTable) {
+            // 发现潜在的新表格起点
+            inTable = true;
+            tablePipes = currentPipes;
+            hasTableSeparator = false;
+            repairedLines.add(line);
+            continue;
+          } else {
+            // 已经在表格中
+            if (RegExp(r'\|?\s*:?---').hasMatch(trimmed)) {
+              hasTableSeparator = true;
+            }
+          }
+        } else if (inTable && trimmed.isEmpty) {
+          inTable = false;
+        } else if (inTable && !trimmed.contains('|')) {
+          inTable = false;
+        }
+      }
+
+      repairedLines.add(line);
+
+      // --- 关键：实时补全表格分隔线 ---
+      if (inTable && !hasTableSeparator && i < lines.length - 1) {
+        final nextLine = lines[i + 1].trim();
+        if (!nextLine.contains('|') || !RegExp(r'\|?\s*:?---').hasMatch(nextLine)) {
+          final separator = '|${List.generate(tablePipes, (_) => ' --- ').join('|')}|';
+          repairedLines.add(separator);
+          hasTableSeparator = true;
+        }
+      }
+    }
+
+    // 4. 闭合未完成的状态
+    if (inCodeBlock) repairedLines.add('```');
+    if (inTable) {
+      if (!repairedLines.last.trim().endsWith('|')) {
+        repairedLines[repairedLines.length - 1] = '${repairedLines.last} |';
+      }
+      if (!hasTableSeparator) {
+        final separator = '|${List.generate(tablePipes, (_) => ' --- ').join('|')}|';
+        repairedLines.add(separator);
+      }
+    }
+
+    sanitized = repairedLines.join('\n');
+
+    // 5. 修复列表缩进
+    sanitized = sanitized.replaceAllMapped(
+      RegExp(r'^(\s*[-*+])([^\s])', multiLine: true),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+
+    return sanitized;
+  }
+
   Widget _buildMessageBubble(ChatMessage msg) {
+    final isUser = msg.isUser;
+    
     return Align(
-      alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      key: ValueKey('msg_${msg.id}'),
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
         decoration: BoxDecoration(
-          color: msg.isUser 
-              ? AppColors.primary 
-              : Theme.of(context).cardColor,
+          color: isUser ? AppColors.primary : Theme.of(context).cardColor,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(msg.isUser ? 16 : 0),
-            bottomRight: Radius.circular(msg.isUser ? 0 : 16),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isUser ? 20 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 20),
           ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 5,
+              blurRadius: 10,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
-           crossAxisAlignment: CrossAxisAlignment.start,
-           children: [
-             MarkdownBody(
-              data: msg.text,
-              styleSheet: MarkdownStyleSheet(
-                p: TextStyle(
-                  color: msg.isUser ? Colors.white : null,
-                  fontSize: 15,
-                  height: 1.5,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: MarkdownBody(
+                key: ValueKey('md_${msg.id}_${msg.text.length}_${msg.isStreaming}'),
+                data: isUser ? msg.text : _sanitizeMarkdown(msg.text),
+                selectable: true,
+                styleSheet: MarkdownStyleSheet(
+                  p: TextStyle(
+                    color: isUser ? Colors.white : AppColors.textPrimary,
+                    fontSize: 15.5,
+                    height: 1.6,
+                  ),
+                  strong: TextStyle(
+                    color: isUser ? Colors.white : AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  h1: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 19, fontWeight: FontWeight.bold),
+                  h2: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 17, fontWeight: FontWeight.bold),
+                  h3: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
+                  listBullet: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 15),
+                  listIndent: 22,
+                  blockquoteDecoration: BoxDecoration(
+                    color: isUser ? Colors.white12 : AppColors.primary.withValues(alpha: 0.05),
+                    border: Border(left: BorderSide(color: isUser ? Colors.white38 : AppColors.primary, width: 4)),
+                  ),
+                  code: TextStyle(
+                    backgroundColor: isUser ? Colors.black12 : AppColors.primary.withValues(alpha: 0.08),
+                    color: isUser ? Colors.white : AppColors.primary,
+                    fontFamily: 'monospace',
+                    fontSize: 13.5,
+                  ),
+                  codeblockDecoration: BoxDecoration(
+                    color: isUser ? Colors.black26 : Colors.grey.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  tableBorder: TableBorder.all(
+                    color: isUser ? Colors.white30 : AppColors.border.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                  tableBody: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontSize: 13),
+                  tableHead: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.bold),
+                  tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 ),
-                strong: TextStyle(
-                  color: msg.isUser ? Colors.white : AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-                h1: TextStyle(color: msg.isUser ? Colors.white : AppColors.primary),
-                h2: TextStyle(color: msg.isUser ? Colors.white : AppColors.primary),
-                h3: TextStyle(color: msg.isUser ? Colors.white : AppColors.primary),
-                listBullet: TextStyle(color: msg.isUser ? Colors.white : AppColors.primary),
-                code: TextStyle(
-                  backgroundColor: msg.isUser ? Colors.white12 : Colors.grey.withValues(alpha: 0.1),
-                  fontFamily: 'monospace',
-                  fontSize: 14,
-                ),
-                codeblockDecoration: BoxDecoration(
-                  color: msg.isUser ? Colors.white10 : Colors.grey.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                blockquoteDecoration: BoxDecoration(
-                  color: msg.isUser ? Colors.white12 : AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                blockquotePadding: const EdgeInsets.all(8),
               ),
             ),
             if (msg.isStreaming)
-               const Padding(
-                 padding: EdgeInsets.only(top: 8.0),
-                 child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-               )
-           ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isUser ? Colors.white70 : AppColors.primary.withValues(alpha: 0.5)
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '正在输入...',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isUser ? Colors.white70 : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
