@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../providers/chat_provider.dart';
 import '../utils/app_colors.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/streaming_markdown.dart';
 
 class XiaoSongScreen extends StatefulWidget {
   const XiaoSongScreen({super.key});
@@ -434,109 +435,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     );
   }
 
-  String _sanitizeMarkdown(String text) {
-    if (text.isEmpty) return text;
 
-    // 1. 基础清理：移除可能导致渲染错误的特殊不可见字符，保留换行
-    var sanitized = text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
-
-    // 2. 增强型块级隔离 (Block Isolation)
-    // 确保列表、标题、表格、代码块、引用块与上方文字至少有两个换行符
-    final blockElements = [
-      r'#+',           // 标题
-      r'[-*+]',        // 无序列表
-      r'\d+\.',        // 有序列表
-      r'\|',           // 表格
-      r'```',          // 代码块
-      r'>',            // 引用
-      r'---',          // 分隔线
-    ];
-
-    for (var element in blockElements) {
-      sanitized = sanitized.replaceAllMapped(
-        RegExp('([^\\n])\\n\\s*($element)'),
-        (match) => '${match.group(1)}\n\n${match.group(2)}',
-      );
-    }
-
-    // 3. 行级处理 (Line-by-line Repair)
-    final lines = sanitized.split('\n');
-    final repairedLines = <String>[];
-    
-    bool inCodeBlock = false;
-    bool inTable = false;
-    int tablePipes = 0;
-    bool hasTableSeparator = false;
-
-    for (int i = 0; i < lines.length; i++) {
-      String line = lines[i];
-      final trimmed = line.trim();
-
-      // --- 代码块处理 ---
-      if (trimmed.startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
-      }
-
-      // --- 表格处理 ---
-      if (!inCodeBlock) {
-        if (trimmed.contains('|')) {
-          final currentPipes = RegExp(r'\|').allMatches(trimmed).length;
-          
-          if (!inTable) {
-            // 发现潜在的新表格起点
-            inTable = true;
-            tablePipes = currentPipes;
-            hasTableSeparator = false;
-            repairedLines.add(line);
-            continue;
-          } else {
-            // 已经在表格中
-            if (RegExp(r'\|?\s*:?---').hasMatch(trimmed)) {
-              hasTableSeparator = true;
-            }
-          }
-        } else if (inTable && trimmed.isEmpty) {
-          inTable = false;
-        } else if (inTable && !trimmed.contains('|')) {
-          inTable = false;
-        }
-      }
-
-      repairedLines.add(line);
-
-      // --- 关键：实时补全表格分隔线 ---
-      if (inTable && !hasTableSeparator && i < lines.length - 1) {
-        final nextLine = lines[i + 1].trim();
-        if (!nextLine.contains('|') || !RegExp(r'\|?\s*:?---').hasMatch(nextLine)) {
-          final separator = '|${List.generate(tablePipes, (_) => ' --- ').join('|')}|';
-          repairedLines.add(separator);
-          hasTableSeparator = true;
-        }
-      }
-    }
-
-    // 4. 闭合未完成的状态
-    if (inCodeBlock) repairedLines.add('```');
-    if (inTable) {
-      if (!repairedLines.last.trim().endsWith('|')) {
-        repairedLines[repairedLines.length - 1] = '${repairedLines.last} |';
-      }
-      if (!hasTableSeparator) {
-        final separator = '|${List.generate(tablePipes, (_) => ' --- ').join('|')}|';
-        repairedLines.add(separator);
-      }
-    }
-
-    sanitized = repairedLines.join('\n');
-
-    // 5. 修复列表缩进
-    sanitized = sanitized.replaceAllMapped(
-      RegExp(r'^(\s*[-*+])([^\s])', multiLine: true),
-      (match) => '${match.group(1)} ${match.group(2)}',
-    );
-
-    return sanitized;
-  }
 
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;
@@ -568,9 +467,10 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: MarkdownBody(
-                key: ValueKey('md_${msg.id}_${msg.text.length}_${msg.isStreaming}'),
-                data: isUser ? msg.text : _sanitizeMarkdown(msg.text),
+              child: StreamingMarkdownWidget(
+                key: ValueKey('md_${msg.id}'),
+                text: msg.text,
+                isStreaming: !isUser && msg.isStreaming,
                 selectable: true,
                 styleSheet: MarkdownStyleSheet(
                   p: TextStyle(
@@ -611,33 +511,6 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                 ),
               ),
             ),
-            if (msg.isStreaming)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isUser ? Colors.white70 : AppColors.primary.withValues(alpha: 0.5)
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '正在输入...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isUser ? Colors.white70 : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
