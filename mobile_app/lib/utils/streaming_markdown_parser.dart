@@ -40,11 +40,11 @@ class StreamingMarkdownParser {
     // Step 0: 基础清理
     var text = _cleanInvisible(raw);
 
-    // Step 1: 块级隔离 — 确保块级元素前有空行
-    text = _ensureBlockGaps(text);
-
-    // Step 2: 块级状态机 — 修复代码块、表格
+    // Step 1: 块级状态机 — 修复代码块、表格
     text = _fixBlocks(text, isStreaming: isStreaming);
+
+    // Step 2: 块级隔离 — 确保块级元素前有空行
+    text = _ensureBlockGaps(text);
 
     // Step 3: 行内修复 — 对最后一段修复未闭合的行内标记
     if (isStreaming) {
@@ -116,7 +116,7 @@ class StreamingMarkdownParser {
       return true;
     }
     // 连续表格行
-    if (p.contains('|') && c.contains('|')) return true;
+    if (p.startsWith('|') && c.startsWith('|')) return true;
     // 连续引用
     if (p.startsWith('>') && c.startsWith('>')) return true;
     return false;
@@ -145,11 +145,24 @@ class StreamingMarkdownParser {
             codeFence = trimmed.startsWith('~~~') ? '~~~' : '```';
             output.add(line);
           } else if (_isTableRow(trimmed)) {
-            state = _BlockState.table;
-            tableColumns = _countTableColumns(trimmed);
-            hasTableSeparator = false;
-            tableHeaderIndex = output.length;
-            output.add(_normalizeTableRow(trimmed, tableColumns));
+            bool isReallyTable = false;
+            if (trimmed.startsWith('|') || trimmed.endsWith('|')) {
+              isReallyTable = true;
+            } else if (i + 1 < lines.length) {
+              if (_isTableSeparator(lines[i + 1].trim())) {
+                isReallyTable = true;
+              }
+            }
+
+            if (isReallyTable) {
+              state = _BlockState.table;
+              tableColumns = _countTableColumns(trimmed);
+              hasTableSeparator = false;
+              tableHeaderIndex = output.length;
+              output.add(_normalizeTableRow(trimmed, tableColumns));
+            } else {
+              output.add(line);
+            }
           } else {
             output.add(line);
           }
@@ -232,12 +245,15 @@ class StreamingMarkdownParser {
   }
 
   bool _isTableSeparator(String trimmed) {
-    return RegExp(r'^\|?[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)*\|?\s*$')
+    return RegExp(r'^\|?[\s:]*-{1,}[\s:]*(\|[\s:]*-{1,}[\s:]*)*\|?\s*$')
         .hasMatch(trimmed);
   }
 
   int _countTableColumns(String row) {
-    final cells = row.split('|').where((c) => c.trim().isNotEmpty).length;
+    var r = row.trim();
+    if (!r.startsWith('|')) r = '|$r';
+    if (!r.endsWith('|')) r = '$r|';
+    final cells = r.split('|').length - 2;
     return cells < 1 ? 1 : cells;
   }
 
@@ -246,11 +262,10 @@ class StreamingMarkdownParser {
     if (!r.startsWith('|')) r = '|$r';
     if (!r.endsWith('|')) r = '$r|';
     // 补齐缺少的列
-    final currentCols =
-        r.split('|').where((c) => c.isNotEmpty).length;
+    final currentCols = r.split('|').length - 2;
     if (currentCols < expectedColumns) {
       for (var i = currentCols; i < expectedColumns; i++) {
-        r = '${r.substring(0, r.length - 1)}   |';
+        r = '$r   |';
       }
     }
     return r;
