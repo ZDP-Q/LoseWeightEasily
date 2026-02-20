@@ -1,151 +1,132 @@
-# LoseWeightEasily 后端 API 文档 (v2.0.0)
+# LoseWeightEasily 后端 API 文档 (v3.0.0)
 
-本文档详细说明了重构后的减肥助手后端接口。
+本文档说明了基于 FastAPI 重构后的减肥助手后端接口。
 
 ## 🚀 基础信息
 
-- **Base URL**: `http://localhost:8000`
+- **Base URL**: `http://127.0.0.1:16666`
 - **内容类型**: `application/json`
-- **认证**: 目前为公开接口（待添加）
+- **认证**: 所有请求必须在 Header 中携带 `X-API-Key`。
+    - Header: `X-API-Key: <your_api_key>`
 
 ---
 
-## 🥗 食物搜索 (Food Search)
+## 🥗 食物识别 (Food Analysis)
 
-### 1. 语义搜索食物
-通过 FAISS 向量索引和语义模型查找最匹配的食物。
+### 1. 图片识别食物 (三路并发)
+上传图片字节流，AI 会执行 3 次独立并发识别，并返回平均热量及详细成分。识别后的图片将自动存入 MinIO，记录存入 PostgreSQL。
 
-- **URL**: `/search`
-- **Method**: `GET`
-- **Query Parameters**:
-    - `query` (string, required): 搜索关键词（如 "苹果", "高蛋白晚餐"）
-    - `limit` (int, optional): 返回结果数量，默认 10
+- **URL**: `/food-analysis/recognize`
+- **Method**: `POST`
+- **Content-Type**: `multipart/form-data`
+- **Request Body**:
+    - `file` (UploadFile): 食物照片 (JPG/PNG)
 
 - **Response Example**:
 ```json
-[
-  {
-    "fdc_id": 1102653,
-    "description": "Apples, raw, gala, with skin",
-    "category": "Fruits and Fruit Juices",
-    "calories_per_100g": 52.0,
-    "similarity": 0.85
-  }
-]
+{
+  "final_food_name": "彩虹沙拉碗",
+  "final_estimated_calories": 573,
+  "raw_data": [
+    {
+      "food_name": "彩虹沙拉碗",
+      "calories": 600,
+      "confidence": 0.95,
+      "components": ["牛油果", "红薯", "鹰嘴豆"]
+    }
+  ],
+  "timestamp": "2026-02-20T13:15:25.254672"
+}
 ```
 
 ---
 
-## 📈 健康指标计算 (Calculation)
+## 💬 智能对话 (Chat)
 
-### 1. 计算 BMR 和 TDEE
-根据个人信息计算基础代谢率（BMR）及不同活动强度下的总日能量消耗（TDEE）。
+### 1. 流式对话 (Xiao Song Agent)
+支持 Tool Calling 和 RAG (基于 Milvus 检索 USDA 食物库)。对话过程中 Agent 会自动调用工具（如规划食谱、查询历史数据）。
 
-- **URL**: `/calculate/bmr`
+- **URL**: `/chat/stream`
 - **Method**: `POST`
 - **Request Body**:
 ```json
 {
-  "weight_kg": 70.5,
-  "height_cm": 175.0,
-  "age": 25,
-  "gender": "male"
+  "message": "我今天中午吃了沙拉，晚上建议吃什么？",
+  "history": [
+    {"role": "user", "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ],
+  "user_info": "体重70kg, 目标减重"
 }
 ```
-- **Response Example**:
-```json
-{
-  "bmr": 1724.05,
-  "tdee": {
-    "sedentary": 2068.86,
-    "light": 2370.57,
-    "moderate": 2672.28,
-    "active": 2973.99,
-    "very_active": 3275.69
-  }
-}
-```
+- **Response Format**: `text/event-stream` (SSE)
+    - `event: text`: 增量文本内容
+    - `event: action_result`: 工具执行结果 (JSON)
+    - `event: usage`: Token 消耗统计
+    - `event: done`: 对话结束
 
 ---
 
-## 📝 体重追踪 (Weight Tracking)
+## 📈 体重记录 (Weight Tracking)
 
-### 1. 记录体重
-添加一条新的体重记录。
-
+### 1. 添加体重记录
 - **URL**: `/weight`
 - **Method**: `POST`
 - **Request Body**:
 ```json
 {
   "weight_kg": 68.5,
-  "notes": "早起空腹体重"
-}
-```
-- **Response Example**:
-```json
-{
-  "id": 1,
-  "weight_kg": 68.5,
-  "recorded_at": "2024-02-15T08:00:00Z",
-  "notes": "早起空腹体重"
+  "notes": "早起空腹"
 }
 ```
 
-### 2. 获取体重历史
-按记录时间倒序获取体重历史记录。
-
-- **URL**: `/weight`
+### 2. 获取体重趋势
+- **URL**: `/weight/history`
 - **Method**: `GET`
 - **Query Parameters**:
-    - `limit` (int, optional): 返回记录条数，默认 100
+    - `limit` (int): 返回记录条数，默认 30
 
 ---
 
-## 🍽️ 饮食计划 (Meal Planning)
+## 🍽️ 饮食计划 (Meal Plan)
 
-### 1. AI 生成饮食计划
-基于现有食材和偏好，利用 AI 生成个性化的一日三餐计划。
-
-- **URL**: `/meal-plan`
+### 1. 自动生成今日计划
+- **URL**: `/meal-plan/generate`
 - **Method**: `POST`
 - **Request Body**:
 ```json
 {
-  "ingredients": ["鸡胸肉", "西兰花", "糙米"],
-  "preferences": "简单易做",
-  "dietary_restrictions": "无"
-}
-```
-- **Response Example**:
-```json
-{
-  "plan": "### 早餐
-- 糙米粥配水煮蛋...
-### 午餐
-- 香煎鸡胸肉配水煮西兰花...",
-  "ingredients": ["鸡胸肉", "西兰花", "糙米"]
+  "ingredients": ["鸡胸肉", "西兰花"],
+  "target_calories": 1800
 }
 ```
 
 ---
 
-## 🛠️ 其他接口
+## 👤 用户管理 (User)
+
+### 1. 获取/更新用户信息
+- **URL**: `/user/profile`
+- **Method**: `GET` / `PATCH`
+
+---
+
+## 🛠️ 运维接口
 
 ### 1. 健康检查
 - **URL**: `/health`
 - **Method**: `GET`
-- **Response**: `{"status": "healthy", "version": "2.0.0"}`
+- **Response**: `{"status": "healthy", "version": "3.0.0"}`
 
 ---
 
-## 💻 开发者说明
+## 💻 开发者控制台
+- **Swagger UI**: [http://127.0.0.1:16666/docs](http://127.0.0.1:16666/docs)
+- **Redoc**: [http://127.0.0.1:16666/redoc](http://127.0.0.1:16666/redoc)
 
-### 本地运行
-1. 安装依赖: `cd backend && uv sync`
-2. 启动服务: `uv run uvicorn src.app:app --reload`
-3. 交互式文档: 启动后访问 [http://localhost:8000/docs](http://localhost:8000/docs) 即可查看 Swagger UI。
-
-### 注意事项
-- 确保 `data/` 目录下存在 `food_index.faiss` 和 `food_metadata.pkl` 文件，否则搜索功能不可用。
-- AI 生成计划需要配置 OpenAI API Key。
+### 本地启动
+```bash
+cd backend
+uv sync
+uv run uvicorn src.app:app --port 16666 --reload
+```

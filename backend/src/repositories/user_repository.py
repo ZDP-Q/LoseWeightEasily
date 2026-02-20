@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import List, Optional
 
 from sqlmodel import Session, select
 
-from ..models import User
+from ..models import Ingredient, User
 
 
 class UserRepository:
@@ -12,6 +12,11 @@ class UserRepository:
     def get_first_user(self) -> Optional[User]:
         """获取数据库中的第一个用户（单用户应用）。"""
         statement = select(User)
+        return self.session.exec(statement).first()
+
+    def get_user_by_name(self, name: str) -> Optional[User]:
+        """通过姓名/用户名获取用户。"""
+        statement = select(User).where(User.name == name)
         return self.session.exec(statement).first()
 
     def create_user(self, user: User) -> User:
@@ -27,3 +32,16 @@ class UserRepository:
         self.session.commit()
         self.session.refresh(user)
         return user
+
+    def get_ingredients(self, user_id: int) -> List[Ingredient]:
+        """获取用户的食材库存。"""
+        statement = select(Ingredient).where(Ingredient.user_id == user_id)
+        return list(self.session.exec(statement).all())
+
+    def add_ingredient(self, user_id: int, name: str) -> Ingredient:
+        """为用户增加食材记录。"""
+        ingredient = Ingredient(name=name, user_id=user_id)
+        self.session.add(ingredient)
+        self.session.commit()
+        self.session.refresh(ingredient)
+        return ingredient

@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../services/api_service.dart';
 import '../providers/chat_provider.dart';
 import '../utils/app_colors.dart';
 import '../widgets/glass_card.dart';
@@ -21,15 +21,17 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
-
-  bool _isIngredientMode = false;
-  final List<String> _selectedIngredients = [];
+  StreamSubscription? _eventSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatProvider = context.read<ChatProvider>();
+      
+      // Listen to events from provider
+      _eventSubscription = chatProvider.events.listen(_handleChatEvent);
+
       if (chatProvider.messages.isEmpty) {
         chatProvider.loadHistory().then((_) {
           if (chatProvider.messages.isEmpty) {
@@ -47,49 +49,36 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     });
   }
 
-  void _toggleIngredientMode() {
-    setState(() {
-      _isIngredientMode = !_isIngredientMode;
-      if (_isIngredientMode) {
-        _selectedIngredients.clear();
-        if (_controller.text.isNotEmpty) {
-          final items = _controller.text.split(RegExp(r'[,，\s]+'));
-          _selectedIngredients.addAll(items.where((i) => i.isNotEmpty));
-          _controller.clear();
-        }
-      }
-    });
+  @override
+  void dispose() {
+    _eventSubscription?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  void _addIngredient(String name) {
-    if (name.trim().isEmpty) return;
-    setState(() {
-      _selectedIngredients.add(name.trim());
-    });
-    _controller.clear();
-  }
-
-  void _removeIngredient(int index) {
-    setState(() {
-      _selectedIngredients.removeAt(index);
-    });
-  }
-
-  void _submitIngredients() {
-    if (_selectedIngredients.isEmpty) {
-      if (_controller.text.trim().isNotEmpty) {
-        _addIngredient(_controller.text);
-      } else {
-        return;
-      }
+  void _handleChatEvent(ChatEvent event) {
+    if (event.type == 'action_result') {
+      _showActionResult(event.data);
+    } else if (event.type == 'recognition_success') {
+      _scrollToBottom();
     }
+  }
+
+  void _showActionResult(Map<String, dynamic>? result) {
+    if (result == null || !mounted) return;
     
-    final text = _selectedIngredients.join(', ');
-    _handleSend(textOverride: text);
-    setState(() {
-      _isIngredientMode = false;
-      _selectedIngredients.clear();
-    });
+    final success = result['success'] == true;
+    final message = result['message'] as String? ?? (success ? '操作成功' : '操作失败');
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+      ),
+    );
   }
 
   void _scrollToBottom({bool isInitial = false}) {
@@ -97,7 +86,6 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
       if (_scrollController.hasClients) {
         if (isInitial) {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-          // 再次确认高度，防止首帧加载未完成
           Future.delayed(const Duration(milliseconds: 50), () {
             if (_scrollController.hasClients) {
               _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -123,64 +111,10 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     }
     
     final chatProvider = context.read<ChatProvider>();
-    chatProvider.addUserMessage(text);
+    
+    // Use provider to send message
+    await chatProvider.sendMessage(text);
     _scrollToBottom();
-    
-    chatProvider.addSystemMessage('...');
-    chatProvider.setStreaming(chatProvider.messages.length - 1, true);
-    _scrollToBottom();
-
-    try {
-      final apiService = context.read<ApiService>();
-      await _streamChat(apiService, chatProvider, text, chatProvider.messages.length - 1);
-    } catch (e) {
-      chatProvider.updateLastMessage('抱歉，出错了: $e', isStreaming: false);
-    }
-  }
-
-  Future<void> _streamChat(ApiService apiService, ChatProvider chatProvider, String message, int messageIndex) async {
-    chatProvider.updateLastMessage('', isStreaming: true);
-
-    try {
-      final stream = apiService.chatWithCoachStream(message);
-      await for (final event in stream) {
-        if (!mounted) break;
-
-        if (event.type == 'text') {
-          chatProvider.appendToLastMessage(event.text ?? '', isStreaming: true);
-          _scrollToBottom();
-        } else if (event.type == 'action_result') {
-          _handleActionResult(event.data);
-        } else if (event.type == 'done') {
-           chatProvider.setStreaming(messageIndex, false);
-           break;
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-         chatProvider.appendToLastMessage('\n\n[连接中断: $e]', isStreaming: false);
-      }
-    } finally {
-      if (mounted) {
-         chatProvider.setStreaming(messageIndex, false);
-      }
-    }
-  }
-
-  void _handleActionResult(Map<String, dynamic>? result) {
-    if (result == null) return;
-    
-    final success = result['success'] == true;
-    final message = result['message'] as String? ?? (success ? '操作成功' : '操作失败');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-      ),
-    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -193,26 +127,26 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     if (!mounted || image == null) return;
 
     final chatProvider = context.read<ChatProvider>();
-    chatProvider.addSystemMessage('📷 正在分析食物图片...');
+    final bytes = await File(image.path).readAsBytes();
+    
     _scrollToBottom();
+    await chatProvider.recognizeFood(bytes);
+    _scrollToBottom();
+  }
 
-    try {
-      final apiService = context.read<ApiService>();
-      final bytes = await File(image.path).readAsBytes();
-      final result = await apiService.recognizeFood(bytes);
-      
-      if (!mounted) return;
-      
-      final confidence = (result['raw_data'][0]['confidence'] as num) * 100;
-      
-      chatProvider.addSystemMessage('''✅ 识别结果：
-食物：${result['final_food_name']}
-预估热量：${result['final_estimated_calories']} kcal
-置信度：${confidence.toStringAsFixed(1)}%''');
-      _scrollToBottom();
-    } catch (e) {
-      chatProvider.addSystemMessage('图片识别失败: $e');
+  void _submitIngredients() {
+    final chatProvider = context.read<ChatProvider>();
+    if (chatProvider.selectedIngredients.isEmpty) {
+      if (_controller.text.trim().isNotEmpty) {
+        chatProvider.addIngredient(_controller.text);
+      } else {
+        return;
+      }
     }
+    
+    final text = chatProvider.selectedIngredients.join(', ');
+    _handleSend(textOverride: text);
+    chatProvider.toggleIngredientMode(); // Turn off mode after submit
   }
 
   void _showFoodQueryDialog() {
@@ -268,6 +202,15 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                 if (chatProvider.isLoading && chatProvider.messages.isEmpty) {
                    return const Center(child: CircularProgressIndicator());
                 }
+                
+                // Trigger scroll when last message is streaming
+                if (chatProvider.messages.isNotEmpty && 
+                    chatProvider.messages.last.isStreaming) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
+                }
+
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -287,6 +230,10 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   }
 
   Widget _buildInputArea() {
+    final chatProvider = context.watch<ChatProvider>();
+    final isIngredientMode = chatProvider.isIngredientMode;
+    final selectedIngredients = chatProvider.selectedIngredients;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       decoration: BoxDecoration(
@@ -309,8 +256,8 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
             child: Row(
               children: [
                 _buildQuickAction(
-                  _isIngredientMode ? '✨ 退出模式' : '🥗 添加食材', 
-                  _toggleIngredientMode
+                  isIngredientMode ? '✨ 退出模式' : '🥗 添加食材', 
+                  chatProvider.toggleIngredientMode
                 ),
                 const SizedBox(width: 8),
                 _buildQuickAction('热量查询', () => _showFoodQueryDialog()),
@@ -319,7 +266,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
           ),
           const SizedBox(height: 12),
           
-          if (_isIngredientMode)
+          if (isIngredientMode)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: GlassCard(
@@ -332,7 +279,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('🥗 已选食材', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                        if (_selectedIngredients.isNotEmpty)
+                        if (selectedIngredients.isNotEmpty)
                           TextButton(
                             onPressed: _submitIngredients,
                             child: const Text('生成食谱', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -340,7 +287,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    if (_selectedIngredients.isEmpty)
+                    if (selectedIngredients.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: Text('在下方输入框添加食材，点击右侧按钮加入列表', 
@@ -350,7 +297,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 4,
-                        children: _selectedIngredients.asMap().entries.map((e) => Chip(
+                        children: selectedIngredients.asMap().entries.map((e) => Chip(
                           label: Text(
                             e.value, 
                             style: const TextStyle(
@@ -359,7 +306,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                               fontWeight: FontWeight.w500
                             )
                           ),
-                          onDeleted: () => _removeIngredient(e.key),
+                          onDeleted: () => chatProvider.removeIngredient(e.key),
                           deleteIcon: const Icon(
                             Icons.close, 
                             size: 14, 
@@ -389,7 +336,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                 child: TextField(
                   controller: _controller,
                   decoration: InputDecoration(
-                    hintText: _isIngredientMode ? '输入食材名称...' : '输入食材或提问...',
+                    hintText: isIngredientMode ? '输入食材名称...' : '输入食材或提问...',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(28),
                       borderSide: BorderSide.none,
@@ -398,13 +345,27 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                     filled: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   ),
-                  onSubmitted: (_) => _isIngredientMode ? _addIngredient(_controller.text) : _handleSend(),
+                  onSubmitted: (_) {
+                    if (isIngredientMode) {
+                      chatProvider.addIngredient(_controller.text);
+                      _controller.clear();
+                    } else {
+                      _handleSend();
+                    }
+                  },
                 ),
               ),
               const SizedBox(width: 12),
               _buildIconButton(
-                icon: _isIngredientMode ? Icons.add : Icons.send,
-                onTap: () => _isIngredientMode ? _addIngredient(_controller.text) : _handleSend(),
+                icon: isIngredientMode ? Icons.add : Icons.send,
+                onTap: () {
+                   if (isIngredientMode) {
+                      chatProvider.addIngredient(_controller.text);
+                      _controller.clear();
+                    } else {
+                      _handleSend();
+                    }
+                },
                 color: AppColors.primary,
                 isFilled: true,
               ),
@@ -434,8 +395,6 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
       ),
     );
   }
-
-
 
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;

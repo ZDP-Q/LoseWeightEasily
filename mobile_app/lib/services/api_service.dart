@@ -6,18 +6,33 @@ import '../models/food_log.dart';
 import '../models/user.dart';
 import '../models/weight_record.dart';
 
+/// 统一的 API 服务
+/// 
+/// 管理网络请求、Token 注入和错误处理
 class ApiService {
+  // 单例模式
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
+  ApiService._internal();
+
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://xiaosong.fucku.top',
   );
+  
   static const Duration _timeout = Duration(seconds: 30);
 
-  static const String apiKey = String.fromEnvironment('API_KEY');
+  String? _token;
 
+  /// 注入 Token
+  void setToken(String? token) {
+    _token = token;
+  }
+
+  /// 获取请求头
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
-        if (apiKey.isNotEmpty) 'X-API-Key': apiKey,
+        if (_token != null && _token!.isNotEmpty) 'X-API-Key': _token!,
       };
 
   // ---------------------------------------------------------------------------
@@ -37,10 +52,8 @@ class ApiService {
         return data.map((j) => FoodSearchResult.fromJson(j)).toList();
       }
       throw ApiException('搜索失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -57,10 +70,8 @@ class ApiService {
         return data.map((j) => FoodLog.fromJson(j)).toList();
       }
       throw ApiException('获取饮食记录失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -80,10 +91,8 @@ class ApiService {
         return FoodLog.fromJson(json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('记录饮食失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -109,10 +118,8 @@ class ApiService {
         return json.decode(utf8.decode(response.bodyBytes));
       }
       throw ApiException('计算失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -129,10 +136,8 @@ class ApiService {
         return data.map((j) => WeightRecord.fromJson(j)).toList();
       }
       throw ApiException('获取体重历史失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -153,10 +158,8 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('记录体重失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -178,10 +181,8 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('更新失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -195,10 +196,8 @@ class ApiService {
           .timeout(_timeout);
       if (response.statusCode == 200) return;
       throw ApiException('删除失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -235,10 +234,8 @@ class ApiService {
         return json.decode(utf8.decode(response.bodyBytes));
       }
       throw ApiException('生成食谱失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('AI 生成超时，请稍后再试');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -259,10 +256,8 @@ class ApiService {
         return data['reply'];
       }
       throw ApiException('对话失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('AI 响应超时');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -276,10 +271,8 @@ class ApiService {
         return data.cast<Map<String, dynamic>>();
       }
       throw ApiException('获取聊天历史失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -316,8 +309,7 @@ class ApiService {
         if (event.type != 'done') yield event;
       }
     } catch (e) {
-      if (e is ApiException) rethrow;
-      throw ApiException('网络错误: $e');
+      throw _handleError(e);
     } finally {
       client.close();
     }
@@ -350,8 +342,8 @@ class ApiService {
   Future<Map<String, dynamic>> recognizeFood(List<int> imageBytes) async {
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/food-analysis/recognize'));
-      if (apiKey.isNotEmpty) {
-        request.headers['X-API-Key'] = apiKey;
+      if (_token != null && _token!.isNotEmpty) {
+        request.headers['X-API-Key'] = _token!;
       }
       request.files.add(http.MultipartFile.fromBytes(
         'file',
@@ -366,10 +358,8 @@ class ApiService {
         return json.decode(utf8.decode(response.bodyBytes));
       }
       throw ApiException('识别失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('识别超时，请重试');
     } catch (e) {
-      throw ApiException('网络连接或识别出错: $e');
+      throw _handleError(e);
     }
   }
 
@@ -386,10 +376,8 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       return null; // 404 = 用户不存在
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -407,10 +395,8 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('创建用户信息失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -428,11 +414,17 @@ class ApiService {
             json.decode(utf8.decode(response.bodyBytes)));
       }
       throw ApiException('更新用户信息失败 (${response.statusCode})');
-    } on TimeoutException {
-      throw ApiException('请求超时，请检查网络连接');
-    } on http.ClientException {
-      throw ApiException('网络连接失败');
+    } catch (e) {
+      throw _handleError(e);
     }
+  }
+
+  /// 统一错误处理
+  Exception _handleError(dynamic e) {
+    if (e is ApiException) return e;
+    if (e is TimeoutException) return const ApiException('请求超时，请检查网络连接');
+    if (e is http.ClientException) return const ApiException('网络连接失败');
+    return ApiException('网络请求出错: $e');
   }
 }
 

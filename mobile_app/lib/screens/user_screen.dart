@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
+import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/weight_provider.dart';
@@ -22,6 +23,7 @@ class _UserScreenState extends State<UserScreen> {
     final userProvider = context.watch<UserProvider>();
     final weightProvider = context.watch<WeightProvider>();
     final themeProvider = context.watch<ThemeProvider>();
+    final authProvider = context.watch<AuthProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('个人中心')),
@@ -45,7 +47,7 @@ class _UserScreenState extends State<UserScreen> {
                     const SizedBox(height: 24),
                     _buildSettingsSection(context, themeProvider),
                     const SizedBox(height: 32),
-                    _buildActionButtons(context),
+                    _buildActionButtons(context, authProvider),
                   ],
                 ),
               ),
@@ -323,14 +325,13 @@ class _UserScreenState extends State<UserScreen> {
   }
 
   UserProfile _applyUpdate(UserProfile current, String field, String value) {
-    final json = current.toJson();
-    if (field == 'name') json['name'] = value;
-    if (field == 'age') json['age'] = int.tryParse(value) ?? current.age;
-    if (field == 'height_cm') json['height_cm'] = double.tryParse(value) ?? current.heightCm;
-    if (field == 'target_weight_kg') json['target_weight_kg'] = double.tryParse(value) ?? current.targetWeightKg;
-    if (field == 'gender') json['gender'] = value;
-    if (field == 'activity_level') json['activity_level'] = value;
-    return UserProfile.fromJson(json);
+    if (field == 'name') return current.copyWith(name: value);
+    if (field == 'age') return current.copyWith(age: int.tryParse(value) ?? current.age);
+    if (field == 'height_cm') return current.copyWith(heightCm: double.tryParse(value) ?? current.heightCm);
+    if (field == 'target_weight_kg') return current.copyWith(targetWeightKg: double.tryParse(value) ?? current.targetWeightKg);
+    if (field == 'gender') return current.copyWith(gender: value);
+    if (field == 'activity_level') return current.copyWith(activityLevel: value);
+    return current;
   }
 
   String _formatActivity(String? level) {
@@ -429,7 +430,7 @@ class _UserScreenState extends State<UserScreen> {
     return Divider(height: 1, indent: 50, color: AppColors.border.withValues(alpha: 0.1));
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, AuthProvider authProvider) {
     return Column(
       children: [
         TextButton(
@@ -439,7 +440,7 @@ class _UserScreenState extends State<UserScreen> {
           child: const Text('保存配置', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
         ),
         TextButton(
-          onPressed: () {},
+          onPressed: () => authProvider.logout(),
           child: const Text('退出登录', style: TextStyle(color: AppColors.danger)),
         ),
       ],

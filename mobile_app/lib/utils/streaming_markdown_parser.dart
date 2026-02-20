@@ -32,13 +32,19 @@ class StreamingMarkdownParser {
 
   /// 将流式接收到的不完整 Markdown 文本转换为可安全渲染的版本。
   ///
-  /// [raw]        当前累积的完整文本（非增量 delta）
+  /// [raw]        当前累积的完整文本
   /// [isStreaming] 是否仍在接收数据
-  String parse(String raw, {bool isStreaming = true}) {
-    if (raw.isEmpty) return raw;
+  /// [cursor]      可选的光标字符串，将根据语法状态注入到合适位置
+  String parse(String raw, {bool isStreaming = true, String? cursor}) {
+    if (raw.isEmpty) return raw + (cursor ?? '');
 
     // Step 0: 基础清理
     var text = _cleanInvisible(raw);
+    
+    // 如果有光标，先临时注入到末尾，后面修复逻辑会处理它
+    if (cursor != null && isStreaming) {
+      text = '$text$cursor';
+    }
 
     // Step 1: 块级状态机 — 修复代码块、表格
     text = _fixBlocks(text, isStreaming: isStreaming);
