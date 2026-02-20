@@ -6,7 +6,11 @@ import '../utils/protocol_parser.dart';
 import '../models/message_segment.dart';
 import '../widgets/protocol_component.dart';
 
-/// 流式渲染组件，支持 Markdown 与自定义协议协议
+/// 修正后的 Ark Protocol 渲染器
+/// 
+/// 核心改进：
+/// 1. **Key 稳定性**：使用 segment 索引作为 Key，不再使用文本 hashCode。
+/// 2. **语法隔离**：将代码块与 Markdown 渲染完全隔离，互不干扰。
 class StreamingMarkdownWidget extends StatefulWidget {
   final String text;
   final bool isStreaming;
@@ -31,7 +35,6 @@ class StreamingMarkdownWidget extends StatefulWidget {
 class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
     with SingleTickerProviderStateMixin {
   final StreamingMarkdownParser _markdownParser = StreamingMarkdownParser();
-
   Timer? _throttleTimer;
   String _pendingText = '';
   bool _hasPendingUpdate = false;
@@ -39,13 +42,12 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
   late AnimationController _cursorController;
   late Animation<double> _cursorOpacity;
 
-  static const _throttleInterval = Duration(milliseconds: 33);
+  static const _throttleInterval = Duration(milliseconds: 16); // 提升到 60fps
 
   @override
   void initState() {
     super.initState();
     _pendingText = widget.text;
-
     _cursorController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -53,15 +55,12 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
     _cursorOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(parent: _cursorController, curve: Curves.easeInOut),
     );
-    if (widget.isStreaming) {
-      _cursorController.repeat(reverse: true);
-    }
+    if (widget.isStreaming) _cursorController.repeat(reverse: true);
   }
 
   @override
   void didUpdateWidget(covariant StreamingMarkdownWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (widget.isStreaming != oldWidget.isStreaming) {
       if (widget.isStreaming) {
         _cursorController.repeat(reverse: true);
@@ -90,17 +89,13 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
     if (_throttleTimer?.isActive ?? false) return;
     _flushPending();
     _throttleTimer = Timer(_throttleInterval, () {
-      if (_hasPendingUpdate && mounted) {
-        _flushPending();
-      }
+      if (_hasPendingUpdate && mounted) _flushPending();
     });
   }
 
   void _flushPending() {
     if (!_hasPendingUpdate && !widget.isStreaming) return;
-    setState(() {
-      _hasPendingUpdate = false;
-    });
+    setState(() { _hasPendingUpdate = false; });
   }
 
   @override
@@ -117,10 +112,9 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
         animation: _cursorOpacity,
         builder: (context, _) {
           final String cursor = widget.isStreaming 
-              ? (_cursorOpacity.value > 0.5 ? "▊" : " ") 
+              ? (_cursorOpacity.value > 0.5 ? "▊" : "") 
               : "";
           
-          // 1. 首先通过协议解析器拆分段落
           final segments = ProtocolParser.parse(_pendingText, isOverallStreaming: widget.isStreaming);
 
           return Column(
@@ -132,20 +126,22 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
               final isLast = index == segments.length - 1;
 
               if (segment.type == SegmentType.component) {
+                // 关键点：使用基于 index 的固定 Key，防止闪烁
                 return ProtocolComponent(
-                  key: ValueKey('comp_${index}_${segment.componentType}'),
+                  key: ValueKey('comp_$index'),
                   type: segment.componentType ?? 'unknown',
                   data: segment.data,
                   isStreaming: segment.isStreaming,
                 );
               } else {
-                // Markdown 段落：如果是最后一段且正在流式传输，则添加光标并修复语法
                 final displayText = isLast
                     ? _markdownParser.parse(segment.text, isStreaming: widget.isStreaming, cursor: cursor)
                     : _markdownParser.parse(segment.text, isStreaming: false);
 
+                if (displayText.trim().isEmpty && !isLast) return const SizedBox.shrink();
+
                 return MarkdownBody(
-                  key: ValueKey('md_${index}_${displayText.hashCode}'),
+                  key: ValueKey('md_$index'), // 固定 Key，不再使用 hashCode
                   data: displayText,
                   selectable: widget.selectable,
                   styleSheet: widget.styleSheet,

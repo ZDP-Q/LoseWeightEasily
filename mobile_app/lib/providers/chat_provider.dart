@@ -202,10 +202,10 @@ class ChatProvider extends ChangeNotifier {
         '脂肪': '待确认'
       };
       
-      // 使用协议格式输出，让前端渲染原生卡片
+      // 使用方舟协议 (Ark Protocol) 格式输出，让前端渲染原生卡片
       final protocolMessage = '''我帮你识别出这张图片里的食物啦！
       
-<component type="food_recognition">
+```json:food_recognition
 {
   "food_name": "${result['final_food_name']}",
   "calories": ${result['final_estimated_calories']},
@@ -215,7 +215,7 @@ class ChatProvider extends ChangeNotifier {
     "脂肪": "${nutrients['fat'] ?? nutrients['脂肪'] ?? '未知'}"
   }
 }
-</component>''';
+```''';
 
       updateLastMessage(protocolMessage, isStreaming: false);
       
