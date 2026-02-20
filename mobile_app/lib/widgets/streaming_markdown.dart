@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../utils/streaming_markdown_parser.dart';
-import '../utils/protocol_parser.dart';
-import '../models/message_segment.dart';
-import '../widgets/protocol_component.dart';
+import '../utils/ark_protocol_syntax.dart';
+import '../utils/ark_component_builder.dart';
 
-/// 修正后的 Ark Protocol 渲染器
+/// 终极版 StreamingMarkdownWidget
 /// 
 /// 核心改进：
-/// 1. **Key 稳定性**：使用 segment 索引作为 Key，不再使用文本 hashCode。
-/// 2. **语法隔离**：将代码块与 Markdown 渲染完全隔离，互不干扰。
+/// 1. **不再物理分块**：将整个文本传递给一个 MarkdownBody，彻底解决格式上下文丢失（全剧加粗）问题。
+/// 2. **语法树扩展**：使用 ArkProtocolSyntax 在 AST 层面拦截自定义协议。
+/// 3. **局部构建**：使用 ArkComponentBuilder 渲染原生卡片。
+/// 4. **零抖动**：去除 Column 嵌套和不稳定的 Key，利用 MarkdownBody 自身的 diff 机制。
 class StreamingMarkdownWidget extends StatefulWidget {
   final String text;
   final bool isStreaming;
@@ -42,7 +44,7 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
   late AnimationController _cursorController;
   late Animation<double> _cursorOpacity;
 
-  static const _throttleInterval = Duration(milliseconds: 16); // 提升到 60fps
+  static const _throttleInterval = Duration(milliseconds: 32); // 保持流畅
 
   @override
   void initState() {
@@ -107,53 +109,36 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _cursorOpacity,
-        builder: (context, _) {
-          final String cursor = widget.isStreaming 
-              ? (_cursorOpacity.value > 0.5 ? "▊" : "") 
-              : "";
-          
-          final segments = ProtocolParser.parse(_pendingText, isOverallStreaming: widget.isStreaming);
+    return AnimatedBuilder(
+      animation: _cursorOpacity,
+      builder: (context, _) {
+        final String cursor = widget.isStreaming 
+            ? (_cursorOpacity.value > 0.5 ? "▊" : "") 
+            : "";
+        
+        final String displayText = _markdownParser.parse(
+          _pendingText, 
+          isStreaming: widget.isStreaming, 
+          cursor: cursor
+        );
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: segments.asMap().entries.map((entry) {
-              final index = entry.key;
-              final segment = entry.value;
-              final isLast = index == segments.length - 1;
-
-              if (segment.type == SegmentType.component) {
-                // 关键点：使用基于 index 的固定 Key，防止闪烁
-                return ProtocolComponent(
-                  key: ValueKey('comp_$index'),
-                  type: segment.componentType ?? 'unknown',
-                  data: segment.data,
-                  isStreaming: segment.isStreaming,
-                );
-              } else {
-                final displayText = isLast
-                    ? _markdownParser.parse(segment.text, isStreaming: widget.isStreaming, cursor: cursor)
-                    : _markdownParser.parse(segment.text, isStreaming: false);
-
-                if (displayText.trim().isEmpty && !isLast) return const SizedBox.shrink();
-
-                return MarkdownBody(
-                  key: ValueKey('md_$index'), // 固定 Key，不再使用 hashCode
-                  data: displayText,
-                  selectable: widget.selectable,
-                  styleSheet: widget.styleSheet,
-                  onTapLink: widget.onTapLink,
-                  fitContent: true,
-                  softLineBreak: true,
-                );
-              }
-            }).toList(),
-          );
-        },
-      ),
+        return MarkdownBody(
+          data: displayText,
+          selectable: widget.selectable,
+          styleSheet: widget.styleSheet,
+          onTapLink: widget.onTapLink,
+          fitContent: true,
+          softLineBreak: true,
+          // 关键：注册自定义语法拦截器
+          blockSyntaxes: const [
+            ArkProtocolSyntax(),
+          ],
+          // 关键：注册元素构造器渲染原生卡片
+          builders: {
+            'ark_component': ArkComponentBuilder(isStreaming: widget.isStreaming),
+          },
+        );
+      },
     );
   }
 }
