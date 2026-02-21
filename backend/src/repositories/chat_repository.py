@@ -1,5 +1,5 @@
 from typing import List
-from sqlmodel import Session, select, desc
+from sqlmodel import Session, select, desc, delete
 from ..models import ChatMessage
 
 class ChatRepository:
@@ -26,10 +26,20 @@ class ChatRepository:
         self.session.refresh(message)
         return message
 
+    def add_messages(self, user_id: int, messages: List[tuple[str, str]]) -> None:
+        """批量保存聊天记录，单事务提交。"""
+        if not messages:
+            return
+
+        records = [
+            ChatMessage(user_id=user_id, role=role, content=content)
+            for role, content in messages
+        ]
+        self.session.add_all(records)
+        self.session.commit()
+
     def clear_history(self, user_id: int):
         """清除用户的所有聊天历史记录。"""
-        statement = select(ChatMessage).where(ChatMessage.user_id == user_id)
-        messages = self.session.exec(statement).all()
-        for msg in messages:
-            self.session.delete(msg)
+        statement = delete(ChatMessage).where(ChatMessage.user_id == user_id)
+        self.session.exec(statement)
         self.session.commit()

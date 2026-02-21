@@ -146,6 +146,7 @@ class ChatProvider extends ChangeNotifier {
   void updateLastMessage(String text, {bool isStreaming = false}) {
     if (_messages.isEmpty) return;
     final last = _messages.last;
+    if (last.text == text && last.isStreaming == isStreaming) return;
     _messages[_messages.length - 1] = ChatMessage(
       id: last.id,
       text: text,
@@ -158,11 +159,14 @@ class ChatProvider extends ChangeNotifier {
 
   void appendToLastMessage(String text, {bool isStreaming = true}) {
      if (_messages.isEmpty) return;
+     if (text.isEmpty) return;
      final lastIdx = _messages.length - 1;
      final last = _messages[lastIdx];
+     final mergedText = last.text + text;
+     if (mergedText == last.text && last.isStreaming == isStreaming) return;
      _messages[lastIdx] = ChatMessage(
        id: last.id,
-       text: last.text + text,
+       text: mergedText,
        isUser: last.isUser,
        isStreaming: isStreaming,
        timestamp: last.timestamp,
@@ -264,6 +268,7 @@ class ChatProvider extends ChangeNotifier {
   void setStreaming(int index, bool isStreaming) {
     if (index < 0 || index >= _messages.length) return;
     final msg = _messages[index];
+    if (msg.isStreaming == isStreaming) return;
     _messages[index] = ChatMessage(
       id: msg.id,
       text: msg.text,

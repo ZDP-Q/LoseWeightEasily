@@ -1,9 +1,30 @@
+from sqlalchemy import event
 from sqlmodel import create_engine, Session, SQLModel
 from .config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database.url)
+is_sqlite = settings.database.url.startswith("sqlite")
+
+engine_kwargs = {
+    "pool_pre_ping": True,
+}
+
+if is_sqlite:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(settings.database.url, **engine_kwargs)
+
+
+if is_sqlite:
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, _):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA temp_store=MEMORY")
+        cursor.execute("PRAGMA cache_size=-20000")
+        cursor.close()
 
 
 def init_db():

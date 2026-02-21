@@ -50,10 +50,9 @@ def get_chat_repo(session: Session = Depends(get_session)) -> ChatRepository:
     return ChatRepository(session)
 
 
-def _build_user_info(user_service: UserService, weight_service: WeightService) -> str:
+def _build_user_info(user, weight_service: WeightService) -> str:
     """构建用户信息上下文字符串。"""
     try:
-        user = user_service.get_user()
         if user and user.tdee:
             # 获取最新体重记录
             latest_records = weight_service.get_records(limit=1)
@@ -102,7 +101,7 @@ async def chat_with_coach(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    user_info = _build_user_info(user_service, weight_service)
+    user_info = _build_user_info(user, weight_service)
     
     # 获取历史记录并转换为 OpenAI 格式
     history_objs = chat_repo.get_history(user.id, limit=10)
@@ -113,9 +112,11 @@ async def chat_with_coach(
             question=request_data.message, user_info=user_info, history=history
         )
         
-        # 异步保存到数据库
-        chat_repo.add_message(user.id, "user", request_data.message)
-        chat_repo.add_message(user.id, "assistant", reply)
+        # 单事务写入，降低提交开销
+        chat_repo.add_messages(
+            user.id,
+            [("user", request_data.message), ("assistant", reply)],
+        )
         
         return ChatResponse(reply=reply)
     except Exception as e:
@@ -140,7 +141,7 @@ async def chat_stream(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    user_info = _build_user_info(user_service, weight_service)
+    user_info = _build_user_info(user, weight_service)
     
     # 获取历史记录
     history_objs = chat_repo.get_history(user.id, limit=10)
@@ -169,9 +170,10 @@ async def chat_stream(
                 yield _encode_sse(event_type, str(data))
             
             # 对话结束后保存记录
-            chat_repo.add_message(user.id, "user", request_data.message)
+            payload: list[tuple[str, str]] = [("user", request_data.message)]
             if full_reply:
-                chat_repo.add_message(user.id, "assistant", full_reply)
+                payload.append(("assistant", full_reply))
+            chat_repo.add_messages(user.id, payload)
                 
         except Exception as e:
             logger.error(f"流式响应生成出错: {e}")
