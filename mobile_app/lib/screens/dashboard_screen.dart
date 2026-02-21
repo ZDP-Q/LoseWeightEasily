@@ -54,9 +54,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 16),
               _buildSummaryCards(context, secondaryColor),
               const SizedBox(height: 16),
-              _buildWeightChart(context),
+              RepaintBoundary(child: _buildWeightChart(context)),
               const SizedBox(height: 16),
-              Expanded(child: _buildFoodLogTable(context, secondaryColor)),
+              Expanded(child: RepaintBoundary(child: _buildFoodLogTable(context, secondaryColor))),
             ],
           ),
         ),
@@ -65,28 +65,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeader(BuildContext context, Color secondaryColor) {
-    final userProvider = context.watch<UserProvider>();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Selector<UserProvider, String>(
+      selector: (_, p) => p.displayName,
+      builder: (context, displayName, child) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '你好, ${userProvider.displayName}',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '你好, $displayName',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                Text('今天也是元气满满的一天 🌟', 
+                    style: TextStyle(fontSize: 13, color: secondaryColor)),
+              ],
             ),
-            Text('今天也是元气满满的一天 🌟', 
-                style: TextStyle(fontSize: 13, color: secondaryColor)),
+            _buildHeaderAction(
+              icon: FontAwesomeIcons.plus,
+              label: '记录体重',
+              onTap: () => _showWeightInputDialog(context),
+            ),
           ],
-        ),
-        _buildHeaderAction(
-          icon: FontAwesomeIcons.plus,
-          label: '记录体重',
-          onTap: () => _showWeightInputDialog(context),
-        ),
-      ],
-    ).animate().fadeIn().slideX();
+        ).animate().fadeIn().slideX();
+      },
+    );
   }
 
   Widget _buildHeaderAction({required IconData icon, required String label, required VoidCallback onTap}) {
@@ -455,72 +459,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFoodLogTable(BuildContext context, Color secondaryColor) {
-    final foodLogProvider = context.watch<FoodLogProvider>();
-    final logs = foodLogProvider.todayLogs;
-    final total = foodLogProvider.totalCalories;
+    return Consumer<FoodLogProvider>(
+      builder: (context, foodLogProvider, child) {
+        final logs = foodLogProvider.todayLogs;
+        final total = foodLogProvider.totalCalories;
 
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('今日摄入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${total.toStringAsFixed(0)} kcal', 
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  Text('总摄入量', style: TextStyle(fontSize: 10, color: secondaryColor)),
+                  const Text('今日摄入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('${total.toStringAsFixed(0)} kcal', 
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      Text('总摄入量', style: TextStyle(fontSize: 10, color: secondaryColor)),
+                    ],
+                  ),
                 ],
+              ),
+              const Divider(height: 24),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _refreshData,
+                  child: logs.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: Center(
+                                child: Text('今日暂无饮食记录', style: TextStyle(color: secondaryColor)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          padding: EdgeInsets.zero,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: logs.length,
+                          separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border, indent: 0),
+                          itemBuilder: (context, index) {
+                            final log = logs[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(
+                                children: [
+                                  const Icon(FontAwesomeIcons.utensils, size: 13, color: AppColors.primary),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(log.foodName, style: const TextStyle(fontSize: 14)),
+                                  ),
+                                  Text('${log.calories.toStringAsFixed(0)} kcal', 
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ),
             ],
           ),
-          const Divider(height: 24),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refreshData,
-              child: logs.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Text('今日暂无饮食记录', style: TextStyle(color: secondaryColor)),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: logs.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border, indent: 0),
-                      itemBuilder: (context, index) {
-                        final log = logs[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Row(
-                            children: [
-                              const Icon(FontAwesomeIcons.utensils, size: 13, color: AppColors.primary),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(log.foodName, style: const TextStyle(fontSize: 14)),
-                              ),
-                              Text('${log.calories.toStringAsFixed(0)} kcal', 
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2, end: 0);
+        ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2, end: 0);
+      },
+    );
   }
 }
