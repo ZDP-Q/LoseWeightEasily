@@ -22,6 +22,8 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
   StreamSubscription? _eventSubscription;
+  Timer? _streamScrollTimer;
+  bool _scrollPostFrameQueued = false;
 
   @override
   void initState() {
@@ -52,6 +54,7 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   @override
   void dispose() {
     _eventSubscription?.cancel();
+    _streamScrollTimer?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -81,8 +84,12 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     );
   }
 
-  void _scrollToBottom({bool isInitial = false}) {
+  void _scrollToBottom({bool isInitial = false, bool immediate = false}) {
+    if (_scrollPostFrameQueued && !isInitial) return;
+    _scrollPostFrameQueued = true;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollPostFrameQueued = false;
       if (_scrollController.hasClients) {
         if (isInitial) {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -91,6 +98,8 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
               _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
             }
           });
+        } else if (immediate) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
         } else {
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
@@ -98,6 +107,16 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
             curve: Curves.easeOut,
           );
         }
+      }
+    });
+  }
+
+  void _scheduleStreamingAutoScroll() {
+    if (_streamScrollTimer?.isActive ?? false) return;
+
+    _streamScrollTimer = Timer(const Duration(milliseconds: 120), () {
+      if (mounted) {
+        _scrollToBottom(immediate: true);
       }
     });
   }
@@ -204,11 +223,9 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
                 }
                 
                 // Trigger scroll when last message is streaming
-                if (chatProvider.messages.isNotEmpty && 
+                if (chatProvider.messages.isNotEmpty &&
                     chatProvider.messages.last.isStreaming) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToBottom();
-                  });
+                  _scheduleStreamingAutoScroll();
                 }
 
                 return ListView.builder(
@@ -398,6 +415,43 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
 
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;
+    final markdownStyle = MarkdownStyleSheet(
+      p: TextStyle(
+        color: isUser ? Colors.white : AppColors.textPrimary,
+        fontSize: 15.5,
+        height: 1.6,
+      ),
+      strong: TextStyle(
+        color: isUser ? Colors.white : AppColors.primary,
+        fontWeight: FontWeight.bold,
+      ),
+      h1: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 19, fontWeight: FontWeight.bold),
+      h2: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 17, fontWeight: FontWeight.bold),
+      h3: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
+      listBullet: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 15),
+      listIndent: 22,
+      blockquoteDecoration: BoxDecoration(
+        color: isUser ? Colors.white12 : AppColors.primary.withValues(alpha: 0.05),
+        border: Border(left: BorderSide(color: isUser ? Colors.white38 : AppColors.primary, width: 4)),
+      ),
+      code: TextStyle(
+        backgroundColor: isUser ? Colors.black12 : AppColors.primary.withValues(alpha: 0.08),
+        color: isUser ? Colors.white : AppColors.primary,
+        fontFamily: 'monospace',
+        fontSize: 13.5,
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: isUser ? Colors.black26 : Colors.grey.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tableBorder: TableBorder.all(
+        color: isUser ? Colors.white30 : AppColors.border.withValues(alpha: 0.3),
+        width: 1,
+      ),
+      tableBody: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontSize: 13),
+      tableHead: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.bold),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    );
     
     return Align(
       key: ValueKey('msg_${msg.id}'),
@@ -426,49 +480,21 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: StreamingMarkdownWidget(
-                key: ValueKey('md_${msg.id}'),
-                text: msg.text,
-                isStreaming: !isUser && msg.isStreaming,
-                selectable: true,
-                styleSheet: MarkdownStyleSheet(
-                  p: TextStyle(
-                    color: isUser ? Colors.white : AppColors.textPrimary,
-                    fontSize: 15.5,
-                    height: 1.6,
-                  ),
-                  strong: TextStyle(
-                    color: isUser ? Colors.white : AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  h1: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 19, fontWeight: FontWeight.bold),
-                  h2: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 17, fontWeight: FontWeight.bold),
-                  h3: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
-                  listBullet: TextStyle(color: isUser ? Colors.white : AppColors.primary, fontSize: 15),
-                  listIndent: 22,
-                  blockquoteDecoration: BoxDecoration(
-                    color: isUser ? Colors.white12 : AppColors.primary.withValues(alpha: 0.05),
-                    border: Border(left: BorderSide(color: isUser ? Colors.white38 : AppColors.primary, width: 4)),
-                  ),
-                  code: TextStyle(
-                    backgroundColor: isUser ? Colors.black12 : AppColors.primary.withValues(alpha: 0.08),
-                    color: isUser ? Colors.white : AppColors.primary,
-                    fontFamily: 'monospace',
-                    fontSize: 13.5,
-                  ),
-                  codeblockDecoration: BoxDecoration(
-                    color: isUser ? Colors.black26 : Colors.grey.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  tableBorder: TableBorder.all(
-                    color: isUser ? Colors.white30 : AppColors.border.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  tableBody: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontSize: 13),
-                  tableHead: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.bold),
-                  tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                ),
-              ),
+              child: (!isUser && msg.isStreaming)
+                  ? StreamingMarkdownWidget(
+                      key: ValueKey('md_${msg.id}'),
+                      text: msg.text,
+                      isStreaming: true,
+                      selectable: true,
+                      styleSheet: markdownStyle,
+                    )
+                  : MarkdownBody(
+                      data: msg.text,
+                      selectable: true,
+                      styleSheet: markdownStyle,
+                      fitContent: true,
+                      softLineBreak: true,
+                    ),
             ),
           ],
         ),

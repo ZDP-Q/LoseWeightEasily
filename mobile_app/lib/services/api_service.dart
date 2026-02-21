@@ -261,10 +261,10 @@ class ApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getChatHistory() async {
+  Future<List<Map<String, dynamic>>> getChatHistory({int limit = 50}) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/chat/history'), headers: _headers)
+          .get(Uri.parse('$baseUrl/chat/history?limit=$limit'), headers: _headers)
           .timeout(_timeout);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -291,7 +291,7 @@ class ApiService {
 
       String buffer = '';
       await for (final chunk in response.stream.transform(utf8.decoder)) {
-        buffer += chunk;
+        buffer += chunk.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
         while (buffer.contains('\n\n')) {
           final index = buffer.indexOf('\n\n');
           final eventString = buffer.substring(0, index);
@@ -318,15 +318,25 @@ class ApiService {
   ChatStreamEvent _parseEvent(String eventString) {
     final lines = eventString.split('\n');
     String eventType = 'text';
-    String data = '';
+    final dataLines = <String>[];
 
     for (final line in lines) {
-      if (line.startsWith('event: ')) {
-        eventType = line.substring(7).trim();
-      } else if (line.startsWith('data: ')) {
-        data = line.substring(6);
+      if (line.isEmpty || line.startsWith(':')) {
+        continue;
+      }
+
+      if (line.startsWith('event:')) {
+        eventType = line.substring(6).trim();
+      } else if (line.startsWith('data:')) {
+        var dataPart = line.substring(5);
+        if (dataPart.startsWith(' ')) {
+          dataPart = dataPart.substring(1);
+        }
+        dataLines.add(dataPart);
       }
     }
+
+    final data = dataLines.join('\n');
 
     if (eventType == 'action_result') {
       try {
@@ -336,6 +346,11 @@ class ApiService {
         return ChatStreamEvent(type: 'text', text: '[解析动作失败]');
       }
     }
+
+    if (eventType == 'usage') {
+      return ChatStreamEvent(type: 'usage', text: data);
+    }
+
     return ChatStreamEvent(type: eventType, text: data);
   }
 

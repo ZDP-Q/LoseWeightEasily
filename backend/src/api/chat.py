@@ -20,6 +20,16 @@ logger = logging.getLogger("loseweight.api.chat")
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+def _encode_sse(event_type: str, data: str | None = "") -> str:
+    """将事件编码为符合 SSE 规范的文本。"""
+    normalized = (data or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    payload = [f"event: {event_type}"]
+    payload.extend(f"data: {line}" for line in lines)
+    payload.append("")
+    return "\n".join(payload) + "\n"
+
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -62,6 +72,7 @@ def _build_user_info(user_service: UserService, weight_service: WeightService) -
 
 @router.get("/history", response_model=List[ChatMessage])
 async def get_chat_history(
+    limit: int = 50,
     user_service: UserService = Depends(get_user_service),
     chat_repo: ChatRepository = Depends(get_chat_repo),
 ):
@@ -70,7 +81,8 @@ async def get_chat_history(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    return chat_repo.get_history(user.id, limit=50)
+    safe_limit = max(1, min(limit, 100))
+    return chat_repo.get_history(user.id, limit=safe_limit)
 
 
 @router.post("", response_model=ChatResponse)
@@ -136,6 +148,7 @@ async def chat_stream(
 
     async def event_generator():
         full_reply = ""
+        done_sent = False
         try:
             async for event in agent.chat_stream(
                 message=request_data.message, user_info=user_info, history=history
@@ -144,15 +157,16 @@ async def chat_stream(
                 data = event.get("data", "")
 
                 if event_type == "text":
-                    full_reply += data
+                    full_reply += str(data)
                 elif event_type == "action_result":
                     data = json.dumps(data, ensure_ascii=False)
                 elif event_type == "usage":
                     data = json.dumps(data, ensure_ascii=False)
                 elif event_type == "done":
                     data = ""
+                    done_sent = True
                 
-                yield f"event: {event_type}\ndata: {data}\n\n"
+                yield _encode_sse(event_type, str(data))
             
             # 对话结束后保存记录
             chat_repo.add_message(user.id, "user", request_data.message)
@@ -161,9 +175,10 @@ async def chat_stream(
                 
         except Exception as e:
             logger.error(f"流式响应生成出错: {e}")
-            yield f"event: error\ndata: {str(e)}\n\n"
+            yield _encode_sse("error", str(e))
         finally:
-            yield "event: done\ndata: \n\n"
+            if not done_sent:
+                yield _encode_sse("done", "")
 
     return StreamingResponse(
         event_generator(),

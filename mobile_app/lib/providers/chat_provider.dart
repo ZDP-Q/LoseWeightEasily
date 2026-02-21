@@ -41,6 +41,10 @@ class ChatProvider extends ChangeNotifier {
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
   final _uuid = const Uuid();
+  static const int _maxMessages = 120;
+  static const int _historyFetchLimit = 50;
+  static const Duration _streamFlushInterval = Duration(milliseconds: 120);
+  static const int _streamFlushChars = 96;
 
   // Ingredient Mode State
   bool _isIngredientMode = false;
@@ -63,6 +67,11 @@ class ChatProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  void _trimMessages() {
+    if (_messages.length <= _maxMessages) return;
+    _messages = _messages.sublist(_messages.length - _maxMessages);
+  }
+
   // --- History Loading ---
   Future<void> loadHistory() async {
     if (_messages.isNotEmpty) return;
@@ -71,8 +80,9 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final history = await _apiService.getChatHistory();
+      final history = await _apiService.getChatHistory(limit: _historyFetchLimit);
       _messages = history.map((m) => ChatMessage.fromJson(m)).toList();
+      _trimMessages();
     } catch (e) {
       debugPrint('Error loading chat history: $e');
     } finally {
@@ -118,6 +128,7 @@ class ChatProvider extends ChangeNotifier {
       isUser: true, 
       timestamp: DateTime.now()
     ));
+    _trimMessages();
     notifyListeners();
   }
 
@@ -128,6 +139,7 @@ class ChatProvider extends ChangeNotifier {
       isUser: false, 
       timestamp: DateTime.now()
     ));
+    _trimMessages();
     notifyListeners();
   }
 
@@ -172,12 +184,36 @@ class ChatProvider extends ChangeNotifier {
       final stream = _apiService.chatWithCoachStream(text);
       updateLastMessage('', isStreaming: true);
 
+      final pendingChunk = StringBuffer();
+      var lastFlushAt = DateTime.now();
+
+      void flushPending({bool force = false}) {
+        if (pendingChunk.isEmpty) return;
+
+        final now = DateTime.now();
+        final intervalOk = now.difference(lastFlushAt) >= _streamFlushInterval;
+        final charsOk = pendingChunk.length >= _streamFlushChars;
+
+        if (!force && !intervalOk && !charsOk) return;
+
+        appendToLastMessage(pendingChunk.toString(), isStreaming: true);
+        pendingChunk.clear();
+        lastFlushAt = now;
+      }
+
       await for (final event in stream) {
         if (event.type == 'text') {
-          appendToLastMessage(event.text ?? '', isStreaming: true);
+          pendingChunk.write(event.text ?? '');
+          flushPending();
         } else if (event.type == 'action_result') {
+          flushPending(force: true);
           _eventController.add(ChatEvent(type: 'action_result', data: event.data));
+        } else if (event.type == 'error') {
+          flushPending(force: true);
+          appendToLastMessage('\n\n[服务异常: ${event.text ?? '未知错误'}]', isStreaming: false);
+          break;
         } else if (event.type == 'done') {
+          flushPending(force: true);
           break;
         }
       }
