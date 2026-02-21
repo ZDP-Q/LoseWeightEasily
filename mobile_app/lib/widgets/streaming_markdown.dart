@@ -31,12 +31,8 @@ class StreamingMarkdownWidget extends StatefulWidget {
       _StreamingMarkdownWidgetState();
 }
 
-class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
-    with SingleTickerProviderStateMixin {
+class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget> {
   Timer? _throttleTimer;
-  late AnimationController _cursorController;
-  late Animation<double> _cursorOpacity;
-
   static const Duration _throttleInterval = Duration(milliseconds: 80);
 
   String _pendingText = '';
@@ -46,37 +42,18 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
   void initState() {
     super.initState();
     _pendingText = widget.text;
-    _cursorController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _cursorOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _cursorController, curve: Curves.easeInOut),
-    );
-    if (widget.isStreaming) _cursorController.repeat(reverse: true);
-
-    _displayText = _normalize(widget.text);
+    _displayText = widget.text;
   }
 
   @override
   void didUpdateWidget(covariant StreamingMarkdownWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // 流状态切换
-    if (widget.isStreaming != oldWidget.isStreaming) {
-      if (widget.isStreaming) {
-        _cursorController.repeat(reverse: true);
-      } else {
-        _cursorController.stop();
-        _cursorController.value = 0.0;
-      }
-    }
-
     if (widget.text != oldWidget.text) {
       _pendingText = widget.text;
       if (!widget.isStreaming) {
         setState(() {
-          _displayText = _normalize(_pendingText);
+          _displayText = _pendingText;
         });
       } else {
         _scheduleRebuild();
@@ -89,166 +66,123 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
     _throttleTimer = Timer(_throttleInterval, () {
       if (!mounted) return;
       setState(() {
-        _displayText = _normalize(_pendingText);
+        _displayText = _pendingText;
       });
     });
   }
 
-  String _normalize(String text) {
-    // 1. 过滤掉 <think>...</think> 标签及其内容
+  String _processStream(String raw) {
+    if (raw.isEmpty) return raw;
+
+    // 1. 过滤思考内容 (DeepSeek/Qwen 兼容)
     final thinkRegExp = RegExp(r'<think>[\s\S]*?(?:</think>|$)', caseSensitive: false, multiLine: true);
-    String filtered = text.replaceAll(thinkRegExp, '');
-    filtered = filtered.replaceAll(RegExp(r'</think>', caseSensitive: false), '');
-    
-    // 2. 修复 Markdown 标题：确保 # 后有空格 (全局检测，不依赖行首)
-    // 匹配井号序列后紧跟非空格、非换行、非井号字符的情况，插入空格
-    filtered = filtered.replaceAllMapped(
-      RegExp(r'(#+)([^\s#\n])'),
-      (match) => '${match.group(1)} ${match.group(2)}',
-    );
-    
-    // 3. 修复标题上方的空行 (极致修复版)
-    // 匹配任何非换行符紧跟标题，或者单个换行符紧跟标题的情况
-    // 这涵盖了 "文本###" 以及 "文本\n###"
-    filtered = filtered.replaceAllMapped(
+    String text = raw.replaceAll(thinkRegExp, '');
+    text = text.replaceAll(RegExp(r'</think>', caseSensitive: false), '');
+
+    // 2. 结构化纠偏 (Structural Guarding V3.0)
+    // 确保标题 # 前有双换行 (暴力纠正，前后端双保险)
+    text = text.replaceAllMapped(
       RegExp(r'([^\n])\n?((?: {0,3})#+ +)'),
       (match) => '${match.group(1)}\n\n${match.group(2)}',
     );
-
-    // 4. 修复 Markdown 列表符号后的空格
-    filtered = filtered.replaceAllMapped(
+    // 确保 # 后有空格 (防止 #Title 这种格式)
+    text = text.replaceAllMapped(
+      RegExp(r'(#+)([^\s#\n])'),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+    // 修复列表符号 [-*+·] 后的空格
+    text = text.replaceAllMapped(
       RegExp(r'^(\s*[-*+·])([^\s\-\*\+\s\n])', multiLine: true),
       (match) => '${match.group(1)} ${match.group(2)}',
     );
-    
-    // 5. 统一列表符号并补齐上方空行
-    filtered = filtered.replaceAllMapped(
-      RegExp(r'([^\n])\n?(\s*[-*+]\s+)', multiLine: true),
+    // 列表上方的换行纠正 (列表与普通文本之间必须有空行)
+    text = text.replaceAllMapped(
+      RegExp(r'([^\n])\n?(\s*[-*+·]\s+)', multiLine: true),
       (match) {
         final content = match.group(1)!;
         final listStart = match.group(2)!;
-        // 如果上一行不是列表项且不是空行，补两个换行
-        if (!RegExp(r'^\s*[-*+]\s+').hasMatch(content)) {
+        // 如果上一行不是列表项且不是换行符，补双换行
+        if (!RegExp(r'^\s*[-*+·]\s+').hasMatch(content)) {
           return '$content\n\n$listStart';
         }
         return '$content\n$listStart';
       },
     );
-    
-    return filtered.replaceAll('\r\n', '\n');
+
+    // 3. 标签自动补全 (Auto-Close Algorithm)
+    // 只有在流式传输时才进行补全，避免最终状态被篡改
+    if (widget.isStreaming) {
+      // 代码块围栏补全
+      final codeFenceCount = '```'.allMatches(text).length;
+      if (codeFenceCount.isOdd) {
+        text = '$text\n```';
+      } else {
+        // 行内代码补全
+        final backtickCount = '`'.allMatches(text).length;
+        if (backtickCount.isOdd) text = '$text`';
+      }
+
+      // 链接/图片 [text](url 补全
+      int lastBracket = text.lastIndexOf('[');
+      int lastCloseBracket = text.lastIndexOf(']');
+      if (lastBracket > lastCloseBracket) text = '$text]';
+
+      int lastParen = text.lastIndexOf('(');
+      int lastCloseParen = text.lastIndexOf(')');
+      if (lastParen > lastCloseParen) {
+        // 如果前面刚闭合了 ]，那说明是链接地址部分
+        String sub = text.substring(0, lastParen).trimRight();
+        if (sub.endsWith(']')) text = '$text)';
+      }
+
+      // 加粗/斜体补全 (** 和 __)
+      text = _autoClosePair(text, '**');
+      text = _autoClosePair(text, '__');
+      
+      // 单星号斜体 (排除列表项的情况)
+      final starCount = '*'.allMatches(text).length;
+      if (starCount.isOdd) {
+        int lastStar = text.lastIndexOf('*');
+        bool isList = lastStar == 0 || text[lastStar - 1] == '\n';
+        if (!isList) text = '$text*';
+      }
+
+      // 4. 视觉闪烁抑制 (Look-ahead Suppression)
+      // 如果末尾正好是这些符号，先不渲染它们，等待下一个 token
+      if (text.endsWith('**') || text.endsWith('__')) {
+        text = text.substring(0, text.length - 2);
+      } else if (text.endsWith('*') || text.endsWith('_') || text.endsWith('#') || text.endsWith('`') || text.endsWith('[')) {
+        text = text.substring(0, text.length - 1);
+      }
+      
+      // 5. 光标集成 (Inline Cursor)
+      // 将光标作为文本的一部分，确保它随排版流动
+      text = '$text ▊';
+    }
+
+    return text.replaceAll('\r\n', '\n');
   }
 
-  String _repairStreamingMarkdown(String markdown) {
-    if (markdown.isEmpty) return markdown;
-    var text = markdown;
-
-    // 针对流式标题的特殊补全：如果最后一行以 # 结尾但没有内容，补全一个空格以触发标题渲染
-    if (RegExp(r'\n(?: {0,3})#+$').hasMatch(text) || text.startsWith('#')) {
-       if (text.endsWith('#')) {
-         text = '$text ';
-       }
-    }
-
-    // 2. 修复行内代码 (Inline Code)
-    final backtickCount = '`'.allMatches(text).length;
-    if (backtickCount.isOdd && !text.endsWith('```')) {
-      text = '$text`';
-    }
-
-    // 3. 修复链接和图片 [text](url
-    // 先找最后一个 '['
-    int lastBracket = text.lastIndexOf('[');
-    int lastCloseBracket = text.lastIndexOf(']');
-    if (lastBracket > lastCloseBracket) {
-      // 正在写 [text
-      text = '$text]';
-    }
-
-    // 再处理链接部分 (url
-    int lastParen = text.lastIndexOf('(');
-    int lastCloseParen = text.lastIndexOf(')');
-    if (lastParen > lastCloseParen) {
-      // 检查 '(' 前面是不是刚闭合的 ']'
-      String beforeParen = text.substring(0, lastParen).trimRight();
-      if (beforeParen.endsWith(']')) {
-         text = '$text)';
-      }
-    }
-
-    // 4. 修复加粗和斜体 (Bold & Italic)
-    // 简单的计数补全，处理 ** 和 __
-    text = _closeTag(text, '**');
-    text = _closeTag(text, '__');
-    
-    // 处理单星号 * (稍微复杂点，因为它可能是列表)
-    // 如果 * 后面紧跟空格，通常是列表，不需要补全
-    final starCount = '*'.allMatches(text).length;
-    if (starCount.isOdd) {
-      int lastStar = text.lastIndexOf('*');
-      // 如果不是行首的列表符，则尝试闭合
-      bool isList = lastStar == 0 || text[lastStar - 1] == '\n';
-      if (!isList) {
-        text = '$text*';
-      }
-    }
-
-    return text;
-  }
-
-  String _closeTag(String text, String tag) {
+  String _autoClosePair(String text, String pair) {
     int count = 0;
-    int pos = text.indexOf(tag);
+    int pos = text.indexOf(pair);
     while (pos != -1) {
       count++;
-      pos = text.indexOf(tag, pos + tag.length);
+      pos = text.indexOf(pair, pos + pair.length);
     }
-    if (count.isOdd) {
-      return '$text$tag';
-    }
-    return text;
+    return count.isOdd ? '$text$pair' : text;
   }
 
   @override
   void dispose() {
     _throttleTimer?.cancel();
-    _cursorController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final content = widget.isStreaming
-        ? _repairStreamingMarkdown(_displayText)
-        : _displayText;
+    final data = _processStream(_displayText);
 
-    final children = <Widget>[_buildMarkdownBody(content)];
-
-    if (widget.isStreaming) {
-      children.add(
-        AnimatedBuilder(
-          animation: _cursorOpacity,
-          builder: (context, _) {
-            final visible = _cursorOpacity.value > 0.5;
-            return Opacity(
-              opacity: visible ? 1 : 0,
-              child: const Padding(
-                padding: EdgeInsets.only(top: 4.0),
-                child: Text('▊', style: TextStyle(fontSize: 14, color: Colors.blueAccent)),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
-  }
-
-  Widget _buildMarkdownBody(String data) {
     return MarkdownBody(
       data: data,
       selectable: widget.selectable,
