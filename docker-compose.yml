@@ -1,0 +1,21 @@
+services:
+  # FastAPI 后端应用
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loseweight-backend
+    restart: always
+    ports:
+      - "16666:16666"
+    volumes:
+      - ./backend/config.yaml:/app/config.yaml
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
+    # 通过环境变量指定外部数据库连接信息（如果你的代码支持环境变量覆盖）
+    environment:
+      - DB_HOST=192.168.1.100  # 替换为你实际的数据库 IP
+      - DB_PORT=5432
+      - MILVUS_HOST=192.168.1.100 # 替换为你实际的 Milvus IP
+      - MILVUS_PORT=19530
+      - TZ=Asia/Shanghai

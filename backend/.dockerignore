@@ -1,0 +1,19 @@
+# Docker 忽略文件
+.venv
+.git
+.github
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.log
+tests/
+Dockerfile
+docker-compose.yml
+README.md
+API_DOC.md
+uv.lock
+pyproject.toml
