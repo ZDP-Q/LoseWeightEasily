@@ -38,6 +38,12 @@ class LLMSettings(BaseModel):
     model: str = Field(default="qwen3.5-plus")
 
 
+class VisionLLMSettings(BaseModel):
+    api_key: str = Field(default="")
+    base_url: str = Field(default="https://ark.cn-beijing.volces.com/api/v3")
+    model: str = Field(default="gemini-1.5-flash")
+
+
 class SecuritySettings(BaseModel):
     api_key: str = Field(default="")
     cors_origins: list[str] = Field(default=["*"])
@@ -73,6 +79,7 @@ class Settings(BaseSettings):
     embedding: EmbeddingModelSettings = Field(default_factory=EmbeddingModelSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    vision_llm: VisionLLMSettings = Field(default_factory=VisionLLMSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
 
