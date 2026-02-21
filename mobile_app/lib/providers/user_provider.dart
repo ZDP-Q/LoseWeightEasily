@@ -9,9 +9,7 @@ class UserProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  UserProvider(this._api) {
-    loadUser();
-  }
+  UserProvider(this._api);
 
   UserProfile? get user => _user;
   bool get isLoading => _isLoading;

@@ -9,9 +9,7 @@ class WeightProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  WeightProvider(this._api) {
-    loadHistory();
-  }
+  WeightProvider(this._api);
 
   List<WeightRecord> get records => _records;
   bool get isLoading => _isLoading;

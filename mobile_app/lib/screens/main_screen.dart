@@ -7,24 +7,48 @@ import 'xiao_song_screen.dart';
 import 'user_screen.dart';
 import '../utils/app_colors.dart';
 
-class MainScreen extends StatelessWidget {
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
-  static const List<Widget> _screens = [
-    DashboardScreen(),
-    XiaoSongScreen(),
-    UserScreen(),
-  ];
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  // 记录哪些页面已经被使用过，只构建访问过的页面
+  final Set<int> _initializedPages = {0}; // 首页默认加载
+
+  static Widget _buildPage(int index) {
+    switch (index) {
+      case 0:
+        return const DashboardScreen();
+      case 1:
+        return const XiaoSongScreen();
+      case 2:
+        return const UserScreen();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final navProvider = context.watch<NavigationProvider>();
     final selectedIndex = navProvider.selectedIndex;
 
+    // 懒加载：只在首次切换到该页面时才初始化
+    _initializedPages.add(selectedIndex);
+
     return Scaffold(
       body: IndexedStack(
         index: selectedIndex,
-        children: _screens,
+        children: List.generate(3, (index) {
+          if (_initializedPages.contains(index)) {
+            return _buildPage(index);
+          }
+          // 未初始化的页面用占位符，避免提前构建
+          return const SizedBox.shrink();
+        }),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
