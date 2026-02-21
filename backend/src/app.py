@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlmodel import Session
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from .api import food, meal_plan, user, weight, food_analysis, chat, food_log
 from .core.config import get_settings
@@ -100,6 +101,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Gzip 压缩中间件（对 > 1000 字节的响应启用压缩）
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include Routers
 app.include_router(food.router)

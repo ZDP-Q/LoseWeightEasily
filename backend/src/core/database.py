@@ -12,6 +12,13 @@ engine_kwargs = {
 
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # 针对 PostgreSQL 等生产级数据库进行连接池调优
+    engine_kwargs.update({
+        "pool_size": 20,          # 基础连接池大小
+        "max_overflow": 10,       # 允许超出的连接数
+        "pool_recycle": 3600,     # 连接回收时间（1小时）
+    })
 
 engine = create_engine(settings.database.url, **engine_kwargs)
 
