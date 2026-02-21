@@ -294,17 +294,17 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
+                  cacheExtent: 500, // 增加缓存区域提升滚动流畅度
                   padding: const EdgeInsets.all(16),
                   itemCount: chatProvider.messages.length,
                   itemBuilder: (context, index) {
-                    final msg = chatProvider.messages[index];
-                    return _buildMessageBubble(msg);
+                    return _buildMessageBubble(chatProvider.messages[index]);
                   },
                 );
               },
             ),
           ),
-          _buildInputArea(),
+          RepaintBoundary(child: _buildInputArea()),
         ],
       ),
     );
@@ -477,101 +477,60 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     );
   }
 
-  String _formatText(String text) {
-    // 1. 过滤掉 <think>...</think> 标签及其内容（忽略大小写，处理未闭合情况）
-    final thinkRegExp = RegExp(r'<think>[\s\S]*?(?:</think>|$)', caseSensitive: false, multiLine: true);
-    String filtered = text.replaceAll(thinkRegExp, '');
-    
-    // 2. 额外清理可能残余的孤立 </think> 标签（防御性）
-    filtered = filtered.replaceAll(RegExp(r'</think>', caseSensitive: false), '');
-    
-    // 3. 修复 Markdown 列表：确保符号后有空格，并统一符号
-    filtered = filtered.replaceAllMapped(
-      RegExp(r'^(\s*[-*+·])([^\s\-\*\+\s])', multiLine: true),
-      (match) => '${match.group(1)} ${match.group(2)}',
-    );
-    
-    // 4. 将中英文圆点统一替换为标准列表符 -
-    filtered = filtered.replaceAllMapped(
-      RegExp(r'^(\s*)·\s+', multiLine: true),
-      (match) => '${match.group(1)}- ',
-    );
-
-    // 5. 确保列表项与其上方的非列表行之间有空行（如果缺失）
-    final lines = filtered.split('\n');
-    final fixedLines = <String>[];
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final isList = RegExp(r'^\s*[-*+]\s+').hasMatch(line);
-      if (isList && i > 0) {
-        final prevLine = lines[i - 1];
-        final prevIsList = RegExp(r'^\s*[-*+]\s+').hasMatch(prevLine);
-        final prevIsEmpty = prevLine.trim().isEmpty;
-        if (!prevIsList && !prevIsEmpty) {
-          fixedLines.add(''); // 插入空行
-        }
-      }
-      fixedLines.add(line);
-    }
-    filtered = fixedLines.join('\n');
-    
-    return filtered.trim().replaceAll('\r\n', '\n');
-  }
-
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;
     final markdownStyle = isUser ? _userMarkdownStyle : _assistantMarkdownStyle;
-    final formattedText = isUser ? msg.text : _formatText(msg.text);
 
     return RepaintBoundary(
       child: Align(
-      key: ValueKey('msg_${msg.id}'),
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
-        decoration: BoxDecoration(
-          color: isUser ? AppColors.primary : Theme.of(context).cardColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(isUser ? 20 : 4),
-            bottomRight: Radius.circular(isUser ? 4 : 20),
+        key: ValueKey('msg_${msg.id}'),
+        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
+          decoration: BoxDecoration(
+            color: isUser ? AppColors.primary : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(20),
+              topRight: const Radius.circular(20),
+              bottomLeft: Radius.circular(isUser ? 20 : 4),
+              bottomRight: Radius.circular(isUser ? 4 : 20),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: (!isUser && msg.isStreaming)
-                  ? StreamingMarkdownWidget(
-                      key: ValueKey('md_${msg.id}'),
-                      text: msg.text, // StreamingMarkdownWidget 内部已处理过滤
-                      isStreaming: true,
-                      selectable: true,
-                      styleSheet: markdownStyle,
-                    )
-                  : MarkdownBody(
-                      key: ValueKey('md_static_${msg.id}'),
-                      data: formattedText,
-                      selectable: true,
-                      styleSheet: markdownStyle,
-                      fitContent: true,
-                      softLineBreak: true,
-                    ),
-            ),
-          ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: (!isUser && msg.isStreaming)
+                    ? StreamingMarkdownWidget(
+                        key: ValueKey('md_${msg.id}'),
+                        text: msg.text,
+                        isStreaming: true,
+                        selectable: true,
+                        styleSheet: markdownStyle,
+                      )
+                    : MarkdownBody(
+                        key: ValueKey('md_static_${msg.id}'),
+                        data: msg.formattedText,
+                        selectable: true,
+                        styleSheet: markdownStyle,
+                        fitContent: true,
+                        softLineBreak: true,
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _buildQuickAction(String label, VoidCallback onTap) {

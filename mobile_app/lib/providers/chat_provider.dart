@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
+import '../utils/markdown_util.dart';
 
 class ChatMessage {
   final String id;
@@ -10,6 +11,7 @@ class ChatMessage {
   final bool isUser;
   final bool isStreaming;
   final DateTime? timestamp;
+  late final String formattedText;
 
   ChatMessage({
     required this.id,
@@ -17,7 +19,9 @@ class ChatMessage {
     required this.isUser,
     this.isStreaming = false,
     this.timestamp,
-  });
+  }) {
+    formattedText = isUser ? text : MarkdownUtil.format(text, isStreaming: isStreaming);
+  }
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
