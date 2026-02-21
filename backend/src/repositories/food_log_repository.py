@@ -17,14 +17,30 @@ class FoodLogRepository:
         self.session.refresh(log)
         return log
 
-    def get_logs_by_date_range(self, user_id: int, start_date: datetime, end_date: datetime) -> List[FoodLog]:
-        statement = select(FoodLog).where(
-            and_(
-                FoodLog.user_id == user_id,
-                FoodLog.timestamp >= start_date,
-                FoodLog.timestamp < end_date
+    def get_logs_by_date_range(
+        self, user_id: int, start_date: datetime, end_date: datetime
+    ) -> List[FoodLog]:
+        statement = (
+            select(FoodLog)
+            .where(
+                and_(
+                    FoodLog.user_id == user_id,
+                    FoodLog.timestamp >= start_date,
+                    FoodLog.timestamp < end_date,
+                )
             )
-        ).order_by(FoodLog.timestamp.asc())
+            .order_by(FoodLog.timestamp.asc())
+        )
+        return self.session.exec(statement).all()
+
+    def get_logs(self, user_id: int, limit: int = 10) -> List[FoodLog]:
+        """获取指定用户的最近饮食记录。"""
+        statement = (
+            select(FoodLog)
+            .where(FoodLog.user_id == user_id)
+            .order_by(FoodLog.timestamp.desc())
+            .limit(limit)
+        )
         return self.session.exec(statement).all()
 
     def get_today_logs(self, user_id: int) -> List[FoodLog]:

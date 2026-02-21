@@ -49,9 +49,11 @@ def main():
     print("=" * 60)
     results = food_search.search_by_text("apple", limit=5)
     for r in results:
-        print(f"  [{r.similarity:.4f}] {r.description} | "
-              f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
-              f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g")
+        print(
+            f"  [{r.similarity:.4f}] {r.description} | "
+            f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
+            f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g"
+        )
 
     # 测试 2: 中文文本搜索
     print()
@@ -60,9 +62,11 @@ def main():
     print("=" * 60)
     results = food_search.search_by_text("鸡胸肉", limit=5)
     for r in results:
-        print(f"  [{r.similarity:.4f}] {r.description} | "
-              f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
-              f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g")
+        print(
+            f"  [{r.similarity:.4f}] {r.description} | "
+            f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
+            f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g"
+        )
 
     # 测试 3: 搜索 'rice'
     print()
@@ -71,9 +75,11 @@ def main():
     print("=" * 60)
     results = food_search.search_by_text("rice", limit=5)
     for r in results:
-        print(f"  [{r.similarity:.4f}] {r.description} | "
-              f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
-              f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g")
+        print(
+            f"  [{r.similarity:.4f}] {r.description} | "
+            f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
+            f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g"
+        )
 
     # 测试 4: 搜索 'milk'
     print()
@@ -82,9 +88,11 @@ def main():
     print("=" * 60)
     results = food_search.search_by_text("milk", limit=5)
     for r in results:
-        print(f"  [{r.similarity:.4f}] {r.description} | "
-              f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
-              f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g")
+        print(
+            f"  [{r.similarity:.4f}] {r.description} | "
+            f"{r.calories_per_100g} kcal | P:{r.protein_per_100g}g "
+            f"F:{r.fat_per_100g}g C:{r.carbs_per_100g}g"
+        )
 
     print()
     print("=" * 60)

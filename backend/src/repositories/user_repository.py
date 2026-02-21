@@ -9,14 +9,13 @@ class UserRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_first_user(self) -> Optional[User]:
-        """获取数据库中的第一个用户（单用户应用）。"""
-        statement = select(User)
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        statement = select(User).where(User.id == user_id)
         return self.session.exec(statement).first()
 
-    def get_user_by_name(self, name: str) -> Optional[User]:
-        """通过姓名/用户名获取用户。"""
-        statement = select(User).where(User.name == name)
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """通过用户名获取用户（用于登录）。"""
+        statement = select(User).where(User.username == username)
         return self.session.exec(statement).first()
 
     def create_user(self, user: User) -> User:

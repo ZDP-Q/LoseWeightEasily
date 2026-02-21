@@ -2,18 +2,20 @@ from typing import List
 from sqlmodel import Session, select, desc, delete
 from ..models import ChatMessage
 
+
 class ChatRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_history(self, user_id: int, limit: int = 20) -> List[ChatMessage]:
+    def get_history(self, user_id: int, limit: int | None = 20) -> List[ChatMessage]:
         """获取用户的聊天历史记录，按时间倒序排列。"""
         statement = (
             select(ChatMessage)
             .where(ChatMessage.user_id == user_id)
             .order_by(desc(ChatMessage.timestamp))
-            .limit(limit)
         )
+        if limit is not None:
+            statement = statement.limit(limit)
         # 获取后反转，使返回结果按时间正序排列
         messages = self.session.exec(statement).all()
         return list(reversed(messages))

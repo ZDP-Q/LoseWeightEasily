@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
-import '../models/user.dart';
 import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+import '../providers/food_log_provider.dart';
+import '../providers/meal_plan_provider.dart';
+import '../providers/navigation_provider.dart';
+import '../providers/search_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/weight_provider.dart';
@@ -23,7 +27,9 @@ class _UserScreenState extends State<UserScreen> {
     final userProvider = context.watch<UserProvider>();
     final weightProvider = context.watch<WeightProvider>();
     final themeProvider = context.watch<ThemeProvider>();
-    final authProvider = context.watch<AuthProvider>();
+    
+    final theme = Theme.of(context);
+    final secondaryColor = theme.textTheme.bodySmall?.color ?? AppColors.textSecondary;
 
     return Scaffold(
       appBar: AppBar(title: const Text('个人中心')),
@@ -39,15 +45,15 @@ class _UserScreenState extends State<UserScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    _buildProfileHeader(userProvider),
+                    _buildProfileHeader(userProvider, secondaryColor),
                     const SizedBox(height: 24),
-                    _buildInfoSection(context, userProvider),
+                    _buildInfoSection(context, userProvider, secondaryColor),
                     const SizedBox(height: 24),
-                    _buildGoalSection(context, userProvider, weightProvider),
+                    _buildGoalSection(context, userProvider, weightProvider, secondaryColor),
                     const SizedBox(height: 24),
-                    _buildSettingsSection(context, themeProvider),
+                    _buildSettingsSection(context, themeProvider, secondaryColor),
                     const SizedBox(height: 32),
-                    _buildActionButtons(context, authProvider),
+                    _buildActionButtons(context),
                   ],
                 ),
               ),
@@ -55,46 +61,38 @@ class _UserScreenState extends State<UserScreen> {
     );
   }
 
-  Widget _buildProfileHeader(UserProvider provider) {
+  Widget _buildProfileHeader(UserProvider provider, Color secondaryColor) {
     return Column(
       children: [
-        GestureDetector(
-          onTap: () => _showEditDialog(context, provider, null, 'name', '修改姓名'),
-          child: const CircleAvatar(
-            radius: 50,
-            backgroundColor: AppColors.primary,
-            child: Icon(Icons.person, size: 50, color: Colors.white),
-          ),
+        const CircleAvatar(
+          radius: 50,
+          backgroundColor: AppColors.primary,
+          child: Icon(Icons.person, size: 50, color: Colors.white),
         ),
         const SizedBox(height: 16),
-        InkWell(
-          onTap: () => _showEditDialog(context, provider, null, 'name', '修改姓名'),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                provider.displayName,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.edit, size: 16, color: AppColors.textSecondary),
-            ],
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              provider.displayName,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         Text(
           provider.hasUser ? '已开启减重之旅' : '暂未设置资料',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: secondaryColor),
         ),
       ],
     );
   }
 
-  Widget _buildInfoSection(BuildContext context, UserProvider provider) {
+  Widget _buildInfoSection(BuildContext context, UserProvider provider, Color secondaryColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(' 基本信息',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        Text(' 基本信息',
+            style: TextStyle(fontWeight: FontWeight.bold, color: secondaryColor)),
         const SizedBox(height: 12),
         GlassCard(
           padding: EdgeInsets.zero,
@@ -106,6 +104,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${provider.user?.age ?? "--"} 岁',
                 FontAwesomeIcons.calendar,
                 () => _showEditDialog(context, provider, null, 'age', '修改年龄'),
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -114,6 +113,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${provider.user?.heightCm ?? "--"} cm',
                 FontAwesomeIcons.arrowsUpDown,
                 () => _showEditDialog(context, provider, null, 'height_cm', '修改身高'),
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -122,6 +122,7 @@ class _UserScreenState extends State<UserScreen> {
                 provider.user?.gender == 'male' ? '男' : '女',
                 FontAwesomeIcons.venusMars,
                 () => _showGenderDialog(context, provider),
+                secondaryColor,
               ),
             ],
           ),
@@ -130,7 +131,7 @@ class _UserScreenState extends State<UserScreen> {
     );
   }
 
-  Widget _buildGoalSection(BuildContext context, UserProvider provider, WeightProvider weightProvider) {
+  Widget _buildGoalSection(BuildContext context, UserProvider provider, WeightProvider weightProvider, Color secondaryColor) {
     final user = provider.user;
     final currentWeight = weightProvider.latestWeight ?? user?.initialWeightKg;
     final targetWeight = user?.targetWeightKg;
@@ -138,33 +139,33 @@ class _UserScreenState extends State<UserScreen> {
     double? currentTdee;
     double? targetTdee;
 
-    if (user != null) {
+    if (user != null && user.heightCm != null && user.age != null && user.gender != null) {
       if (currentWeight != null) {
         final bmr = BmrCalculator.calculateBmr(
           weight: currentWeight,
-          height: user.heightCm,
-          age: user.age,
-          gender: user.gender,
+          height: user.heightCm!,
+          age: user.age!,
+          gender: user.gender!,
         );
-        currentTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+        currentTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel ?? 'sedentary');
       }
 
       if (targetWeight != null) {
         final bmr = BmrCalculator.calculateBmr(
           weight: targetWeight,
-          height: user.heightCm,
-          age: user.age,
-          gender: user.gender,
+          height: user.heightCm!,
+          age: user.age!,
+          gender: user.gender!,
         );
-        targetTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+        targetTdee = BmrCalculator.calculateTdee(bmr, user.activityLevel ?? 'sedentary');
       }
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(' 目标与代谢',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        Text(' 目标与代谢',
+            style: TextStyle(fontWeight: FontWeight.bold, color: secondaryColor)),
         const SizedBox(height: 12),
         GlassCard(
           padding: EdgeInsets.zero,
@@ -176,6 +177,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${currentWeight?.toStringAsFixed(1) ?? "--"} kg',
                 FontAwesomeIcons.weightScale,
                 () => _showEditDialog(context, provider, weightProvider, 'current_weight', '记录当前体重'),
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -184,6 +186,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${targetWeight?.toStringAsFixed(1) ?? "--"} kg',
                 FontAwesomeIcons.bullseye,
                 () => _showEditDialog(context, provider, weightProvider, 'target_weight_kg', '修改目标体重'),
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -192,6 +195,7 @@ class _UserScreenState extends State<UserScreen> {
                 _formatActivity(provider.user?.activityLevel),
                 FontAwesomeIcons.personRunning,
                 () => _showActivityDialog(context, provider),
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -200,6 +204,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${currentTdee?.toStringAsFixed(0) ?? "--"} kcal',
                 FontAwesomeIcons.bolt,
                 null,
+                secondaryColor,
               ),
               _buildDivider(),
               _buildListTile(
@@ -208,6 +213,7 @@ class _UserScreenState extends State<UserScreen> {
                 '${targetTdee?.toStringAsFixed(0) ?? "--"} kcal',
                 FontAwesomeIcons.flagCheckered,
                 null,
+                secondaryColor,
               ),
             ],
           ),
@@ -220,12 +226,11 @@ class _UserScreenState extends State<UserScreen> {
     final controller = TextEditingController();
     String? currentVal;
 
-    if (field == 'name') currentVal = provider.user?.name;
-    if (field == 'age') currentVal = provider.user?.age.toString();
-    if (field == 'height_cm') currentVal = provider.user?.heightCm.toString();
-    if (field == 'target_weight_kg') currentVal = provider.user?.targetWeightKg.toString();
+    if (field == 'age') currentVal = provider.user?.age?.toString();
+    if (field == 'height_cm') currentVal = provider.user?.heightCm?.toString();
+    if (field == 'target_weight_kg') currentVal = provider.user?.targetWeightKg?.toString();
     if (field == 'current_weight') {
-      currentVal = weightProvider?.latestWeight?.toString() ?? provider.user?.initialWeightKg.toString();
+      currentVal = weightProvider?.latestWeight?.toString() ?? provider.user?.initialWeightKg?.toString();
     }
 
     controller.text = currentVal ?? '';
@@ -238,7 +243,7 @@ class _UserScreenState extends State<UserScreen> {
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: '请输入新的$title'),
-          keyboardType: field == 'name' ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
@@ -250,9 +255,15 @@ class _UserScreenState extends State<UserScreen> {
                   if (val != null && weightProvider != null) {
                     await weightProvider.addRecord(val);
                   }
-                } else if (provider.user != null) {
-                  final newUser = _applyUpdate(provider.user!, field, controller.text);
-                  await provider.updateUser(newUser);
+                } else {
+                   final val = double.tryParse(controller.text);
+                   if (val != null) {
+                      await provider.updateProfile(
+                        age: field == 'age' ? val.toInt() : null,
+                        height: field == 'height_cm' ? val : null,
+                        targetWeight: field == 'target_weight_kg' ? val : null,
+                      );
+                   }
                 }
                 if (context.mounted) Navigator.pop(context);
               } catch (e) {
@@ -293,7 +304,6 @@ class _UserScreenState extends State<UserScreen> {
       'light': '轻度 (每周 1-3 次)',
       'moderate': '中度 (每周 3-5 次)',
       'active': '活跃 (每周 6-7 次)',
-      'very_active': '极度活跃 (运动员)',
     };
 
     showDialog(
@@ -312,26 +322,16 @@ class _UserScreenState extends State<UserScreen> {
 
   Future<void> _updateSimpleField(BuildContext context, UserProvider provider, String field, String value) async {
     try {
-      if (provider.user != null) {
-        final newUser = _applyUpdate(provider.user!, field, value);
-        await provider.updateUser(newUser);
-      }
+      await provider.updateProfile(
+        gender: field == 'gender' ? value : null,
+        activityLevel: field == 'activity_level' ? value : null,
+      );
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('更新失败: $e')));
       }
     }
-  }
-
-  UserProfile _applyUpdate(UserProfile current, String field, String value) {
-    if (field == 'name') return current.copyWith(name: value);
-    if (field == 'age') return current.copyWith(age: int.tryParse(value) ?? current.age);
-    if (field == 'height_cm') return current.copyWith(heightCm: double.tryParse(value) ?? current.heightCm);
-    if (field == 'target_weight_kg') return current.copyWith(targetWeightKg: double.tryParse(value) ?? current.targetWeightKg);
-    if (field == 'gender') return current.copyWith(gender: value);
-    if (field == 'activity_level') return current.copyWith(activityLevel: value);
-    return current;
   }
 
   String _formatActivity(String? level) {
@@ -344,19 +344,17 @@ class _UserScreenState extends State<UserScreen> {
         return '中度活动';
       case 'active':
         return '活跃';
-      case 'very_active':
-        return '极度活跃';
       default:
         return '未设置';
     }
   }
 
-  Widget _buildSettingsSection(BuildContext context, ThemeProvider themeProvider) {
+  Widget _buildSettingsSection(BuildContext context, ThemeProvider themeProvider, Color secondaryColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(' 系统设置',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        Text(' 系统设置',
+            style: TextStyle(fontWeight: FontWeight.bold, color: secondaryColor)),
         const SizedBox(height: 12),
         GlassCard(
           padding: EdgeInsets.zero,
@@ -368,7 +366,7 @@ class _UserScreenState extends State<UserScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(themeProvider.themeName, style: const TextStyle(color: AppColors.textSecondary)),
+                    Text(themeProvider.themeName, style: TextStyle(color: secondaryColor)),
                     const Icon(Icons.chevron_right, size: 20, color: AppColors.border),
                   ],
                 ),
@@ -411,14 +409,14 @@ class _UserScreenState extends State<UserScreen> {
     );
   }
 
-  Widget _buildListTile(BuildContext context, String title, String value, IconData icon, VoidCallback? onTap) {
+  Widget _buildListTile(BuildContext context, String title, String value, IconData icon, VoidCallback? onTap, Color secondaryColor) {
     return ListTile(
       leading: Icon(icon, size: 18, color: AppColors.primary),
       title: Text(title, style: const TextStyle(fontSize: 15)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(value, style: TextStyle(color: secondaryColor)),
           if (onTap != null) const Icon(Icons.chevron_right, size: 20, color: AppColors.border),
         ],
       ),
@@ -430,20 +428,51 @@ class _UserScreenState extends State<UserScreen> {
     return Divider(height: 1, indent: 50, color: AppColors.border.withValues(alpha: 0.1));
   }
 
-  Widget _buildActionButtons(BuildContext context, AuthProvider authProvider) {
+  Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
         TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已成功保存您的个人资料')));
-          },
-          child: const Text('保存配置', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-        ),
-        TextButton(
-          onPressed: () => authProvider.logout(),
-          child: const Text('退出登录', style: TextStyle(color: AppColors.danger)),
+          onPressed: () => _handleLogout(context),
+          child: const Text('退出登录', style: TextStyle(color: Colors.red)),
         ),
       ],
     );
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('确定要退出当前账号吗？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('退出', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    // 1. 先重置所有用户数据相关的 Provider
+    context.read<UserProvider>().reset();
+    context.read<WeightProvider>().reset();
+    context.read<ChatProvider>().reset();
+    context.read<FoodLogProvider>().reset();
+    context.read<MealPlanProvider>().reset();
+    context.read<SearchProvider>().reset();
+    context.read<NavigationProvider>().reset();
+
+    // 2. 执行真正的登出
+    await context.read<AuthProvider>().logout();
+
+    // 3. 兜底操作：显式回到根路由并清空栈
+    // 根路由 '/' 渲染的是 RootNavigator，它会根据最新的 auth 状态展示正确的页面
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/', (route) => false);
+    }
   }
 }

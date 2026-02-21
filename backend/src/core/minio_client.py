@@ -7,6 +7,7 @@ from .config import get_settings
 
 logger = logging.getLogger("loseweight.minio")
 
+
 class MinIOClient:
     def __init__(self):
         settings = get_settings().minio
@@ -54,6 +55,7 @@ class MinIOClient:
         except Exception as e:
             logger.error(f"Failed to generate presigned URL: {e}")
             return ""
+
 
 # 单例对象供全局使用
 minio_client = MinIOClient()

@@ -16,12 +16,18 @@ class UserProvider extends ChangeNotifier {
   bool get hasUser => _user != null;
   String? get error => _error;
 
-  String get displayName => _user?.name ?? '新用户';
+  void reset() {
+    _user = null;
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  String get displayName => _user?.username ?? '新用户';
   double? get bmr => _user?.bmr;
   double? get tdee => _user?.tdee;
   double? get dailyCalorieGoal => _user?.dailyCalorieGoal;
   double? get targetWeight => _user?.targetWeightKg;
-
   double? get initialWeight => _user?.initialWeightKg;
 
   Future<void> loadUser() async {
@@ -29,7 +35,7 @@ class UserProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _user = await _api.getUser();
+      _user = await _api.getMe();
     } catch (e) {
       _error = '加载用户信息失败: $e';
     } finally {
@@ -38,29 +44,28 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> createUser(UserProfile profile) async {
+  Future<void> updateProfile({
+    int? age,
+    String? gender,
+    double? height,
+    double? initialWeight,
+    double? targetWeight,
+    String? activityLevel,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      _user = await _api.createUser(profile);
+      _user = await _api.updateProfile(
+        age: age,
+        gender: gender,
+        height: height,
+        initialWeight: initialWeight,
+        targetWeight: targetWeight,
+        activityLevel: activityLevel,
+      );
     } catch (e) {
-      _error = '创建用户失败: $e';
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> updateUser(UserProfile profile) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-    try {
-      _user = await _api.updateUser(profile);
-    } catch (e) {
-      _error = '更新用户失败: $e';
+      _error = '更新个人资料失败: $e';
       rethrow;
     } finally {
       _isLoading = false;

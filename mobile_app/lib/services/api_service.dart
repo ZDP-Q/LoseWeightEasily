@@ -1,16 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/food.dart';
 import '../models/food_log.dart';
 import '../models/user.dart';
 import '../models/weight_record.dart';
 
-/// 统一的 API 服务
-/// 
-/// 管理网络请求、Token 注入和错误处理
 class ApiService {
-  // 单例模式
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
@@ -21,23 +18,130 @@ class ApiService {
   );
   
   static const Duration _timeout = Duration(seconds: 30);
+  static const String _tokenKey = 'auth_token';
 
   String? _token;
 
-  /// 注入 Token
-  void setToken(String? token) {
-    _token = token;
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString(_tokenKey);
   }
 
-  /// 获取请求头
+  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
+
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
-        if (_token != null && _token!.isNotEmpty) 'X-API-Key': _token!,
+        if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
   // ---------------------------------------------------------------------------
-  // Food Search
+  // Auth & User Management
   // ---------------------------------------------------------------------------
+
+  Future<void> login(String username, String password) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/user/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'username': username, 'password': password}),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        _token = data['access_token'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_tokenKey, _token!);
+        return;
+      }
+      final error = json.decode(utf8.decode(response.bodyBytes));
+      throw ApiException(error['detail'] ?? '登录失败');
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> register(String username, String password, {String? email}) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/user/register'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'username': username, 
+              'password': password,
+              'email': email,
+            }),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) return;
+      final error = json.decode(utf8.decode(response.bodyBytes));
+      throw ApiException(error['detail'] ?? '注册失败');
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> logout() async {
+    _token = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+  }
+
+  Future<UserProfile> getMe() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/user/me'), headers: _headers)
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('获取用户信息失败');
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<UserProfile> updateProfile({
+    int? age,
+    String? gender,
+    double? height,
+    double? initialWeight,
+    double? targetWeight,
+    String? activityLevel,
+  }) async {
+    try {
+      final body = {
+        'age': ?age,
+        'gender': ?gender,
+        'height_cm': ?height,
+        'initial_weight_kg': ?initialWeight,
+        'target_weight_kg': ?targetWeight,
+        'activity_level': ?activityLevel,
+      };
+      
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/user/profile'),
+            headers: _headers,
+            body: json.encode(body),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        return UserProfile.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      }
+      throw ApiException('更新个人资料失败');
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Food & Weight
+  // ---------------------------------------------------------------------------
+  
   Future<List<FoodSearchResult>> searchFood(String query) async {
     try {
       final response = await http
@@ -57,19 +161,16 @@ class ApiService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Food Logs
-  // ---------------------------------------------------------------------------
   Future<List<FoodLog>> getTodayFoodLogs() async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/food-logs/today'), headers: _headers)
+          .get(Uri.parse('$baseUrl/food-log'), headers: _headers)
           .timeout(_timeout);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((j) => FoodLog.fromJson(j)).toList();
       }
-      throw ApiException('获取饮食记录失败 (${response.statusCode})');
+      throw ApiException('获取饮食记录失败');
     } catch (e) {
       throw _handleError(e);
     }
@@ -79,7 +180,7 @@ class ApiService {
     try {
       final response = await http
           .post(
-            Uri.parse('$baseUrl/food-logs'),
+            Uri.parse('$baseUrl/food-log'),
             headers: _headers,
             body: json.encode({
               'food_name': foodName,
@@ -90,52 +191,22 @@ class ApiService {
       if (response.statusCode == 200) {
         return FoodLog.fromJson(json.decode(utf8.decode(response.bodyBytes)));
       }
-      throw ApiException('记录饮食失败 (${response.statusCode})');
+      throw ApiException('记录饮食失败');
     } catch (e) {
       throw _handleError(e);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // BMR Calculation
-  // ---------------------------------------------------------------------------
-  Future<Map<String, dynamic>> calculateBmr(
-      double weight, double height, int age, String gender) async {
+  Future<List<WeightRecord>> getWeightHistory() async {
     try {
       final response = await http
-          .post(
-            Uri.parse('$baseUrl/calculate/bmr'),
-            headers: _headers,
-            body: json.encode({
-              'weight_kg': weight,
-              'height_cm': height,
-              'age': age,
-              'gender': gender,
-            }),
-          )
-          .timeout(_timeout);
-      if (response.statusCode == 200) {
-        return json.decode(utf8.decode(response.bodyBytes));
-      }
-      throw ApiException('计算失败 (${response.statusCode})');
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Weight Records
-  // ---------------------------------------------------------------------------
-  Future<List<WeightRecord>> getWeightHistory({int limit = 100}) async {
-    try {
-      final response = await http
-          .get(Uri.parse('$baseUrl/weight?limit=$limit'), headers: _headers)
+          .get(Uri.parse('$baseUrl/weight'), headers: _headers)
           .timeout(_timeout);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((j) => WeightRecord.fromJson(j)).toList();
       }
-      throw ApiException('获取体重历史失败 (${response.statusCode})');
+      throw ApiException('获取体重历史失败');
     } catch (e) {
       throw _handleError(e);
     }
@@ -154,10 +225,9 @@ class ApiService {
           )
           .timeout(_timeout);
       if (response.statusCode == 200) {
-        return WeightRecord.fromJson(
-            json.decode(utf8.decode(response.bodyBytes)));
+        return WeightRecord.fromJson(json.decode(utf8.decode(response.bodyBytes)));
       }
-      throw ApiException('记录体重失败 (${response.statusCode})');
+      throw ApiException('记录体重失败');
     } catch (e) {
       throw _handleError(e);
     }
@@ -165,22 +235,22 @@ class ApiService {
 
   Future<WeightRecord> updateWeight(int id, double? weight, String? notes) async {
     try {
-      final Map<String, dynamic> data = {};
-      if (weight != null) data['weight_kg'] = weight;
-      if (notes != null) data['notes'] = notes;
-
+      final body = {
+        'weight_kg': ?weight,
+        'notes': ?notes,
+      };
+      
       final response = await http
-          .patch(
+          .put(
             Uri.parse('$baseUrl/weight/$id'),
             headers: _headers,
-            body: json.encode(data),
+            body: json.encode(body),
           )
           .timeout(_timeout);
       if (response.statusCode == 200) {
-        return WeightRecord.fromJson(
-            json.decode(utf8.decode(response.bodyBytes)));
+        return WeightRecord.fromJson(json.decode(utf8.decode(response.bodyBytes)));
       }
-      throw ApiException('更新失败 (${response.statusCode})');
+      throw ApiException('更新失败');
     } catch (e) {
       throw _handleError(e);
     }
@@ -189,59 +259,33 @@ class ApiService {
   Future<void> deleteWeight(int id) async {
     try {
       final response = await http
-          .delete(
-            Uri.parse('$baseUrl/weight/$id'),
-            headers: _headers,
-          )
+          .delete(Uri.parse('$baseUrl/weight/$id'), headers: _headers)
           .timeout(_timeout);
-      if (response.statusCode == 200) return;
-      throw ApiException('删除失败 (${response.statusCode})');
+      if (response.statusCode == 200 || response.statusCode == 204) return;
+      throw ApiException('删除失败');
     } catch (e) {
       throw _handleError(e);
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Meal Plan
+  // AI & Chat
   // ---------------------------------------------------------------------------
-  Future<Map<String, dynamic>> generateMealPlan({
-    required List<String> ingredients,
-    String? preferences,
-    String? restrictions,
-    double? calorieGoal,
-  }) async {
+
+  Future<List<Map<String, dynamic>>> getChatHistory({int limit = 20}) async {
     try {
-      // 构建偏好字符串，将热量目标整合进去
-      String fullPreferences = preferences ?? '';
-      if (calorieGoal != null) {
-        final calorieInfo = '每日热量目标: ${calorieGoal.toStringAsFixed(0)} kcal';
-        fullPreferences =
-            fullPreferences.isEmpty ? calorieInfo : '$fullPreferences, $calorieInfo';
-      }
-
       final response = await http
-          .post(
-            Uri.parse('$baseUrl/meal-plan'),
-            headers: _headers,
-            body: json.encode({
-              'ingredients': ingredients,
-              'preferences': fullPreferences,
-              'dietary_restrictions': restrictions ?? '',
-            }),
-          )
-          .timeout(const Duration(seconds: 120)); // AI 生成需要更长超时
+          .get(Uri.parse('$baseUrl/chat/history?limit=$limit'), headers: _headers)
+          .timeout(_timeout);
       if (response.statusCode == 200) {
-        return json.decode(utf8.decode(response.bodyBytes));
+        return List<Map<String, dynamic>>.from(json.decode(utf8.decode(response.bodyBytes)));
       }
-      throw ApiException('生成食谱失败 (${response.statusCode})');
+      throw ApiException('获取聊天历史失败');
     } catch (e) {
       throw _handleError(e);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // AI Chat & Food Recognition
-  // ---------------------------------------------------------------------------
   Future<String> chatWithCoach(String message) async {
     try {
       final response = await http
@@ -250,27 +294,42 @@ class ApiService {
             headers: _headers,
             body: json.encode({'message': message}),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(_timeout);
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        return data['reply'];
+        return data['content'];
       }
-      throw ApiException('对话失败 (${response.statusCode})');
+      throw ApiException('对话失败');
     } catch (e) {
       throw _handleError(e);
     }
   }
 
-  Future<List<Map<String, dynamic>>> getChatHistory({int limit = 50}) async {
+  Future<Map<String, dynamic>> generateMealPlan({
+    List<String>? ingredients,
+    String? preferences,
+    String? restrictions,
+    double? calorieGoal,
+  }) async {
     try {
+      final body = {
+        'ingredients': ?ingredients,
+        'preferences': ?preferences,
+        'restrictions': ?restrictions,
+        'calorie_goal': ?calorieGoal,
+      };
+      
       final response = await http
-          .get(Uri.parse('$baseUrl/chat/history?limit=$limit'), headers: _headers)
+          .post(
+            Uri.parse('$baseUrl/meal-plan/generate'),
+            headers: _headers,
+            body: json.encode(body),
+          )
           .timeout(_timeout);
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        return data.cast<Map<String, dynamic>>();
+        return json.decode(utf8.decode(response.bodyBytes));
       }
-      throw ApiException('获取聊天历史失败 (${response.statusCode})');
+      throw ApiException('生成食谱失败');
     } catch (e) {
       throw _handleError(e);
     }
@@ -284,29 +343,17 @@ class ApiService {
       request.body = json.encode({'message': message});
 
       final response = await client.send(request);
-
-      if (response.statusCode != 200) {
-        throw ApiException('连接失败 (${response.statusCode})');
-      }
+      if (response.statusCode != 200) throw ApiException('连接失败');
 
       String buffer = '';
       await for (final chunk in response.stream.transform(utf8.decoder)) {
-        buffer += chunk.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+        buffer += chunk.replaceAll('\r\n', '\n');
         while (buffer.contains('\n\n')) {
           final index = buffer.indexOf('\n\n');
           final eventString = buffer.substring(0, index);
           buffer = buffer.substring(index + 2);
-          
-          final event = _parseEvent(eventString);
-          if (event.type == 'done') return;
-          yield event;
+          yield _parseEvent(eventString);
         }
-      }
-      
-      // 处理流结束后的残留 buffer
-      if (buffer.trim().isNotEmpty) {
-        final event = _parseEvent(buffer);
-        if (event.type != 'done') yield event;
       }
     } catch (e) {
       throw _handleError(e);
@@ -319,143 +366,50 @@ class ApiService {
     final lines = eventString.split('\n');
     String eventType = 'text';
     final dataLines = <String>[];
-
     for (final line in lines) {
-      if (line.isEmpty || line.startsWith(':')) {
-        continue;
-      }
-
       if (line.startsWith('event:')) {
         eventType = line.substring(6).trim();
       } else if (line.startsWith('data:')) {
-        var dataPart = line.substring(5);
-        if (dataPart.startsWith(' ')) {
-          dataPart = dataPart.substring(1);
-        }
-        dataLines.add(dataPart);
+        dataLines.add(line.substring(5).trim());
       }
     }
-
     final data = dataLines.join('\n');
-
-    if (eventType == 'action_result') {
-      try {
-        final jsonData = json.decode(data);
-        return ChatStreamEvent(type: 'action_result', data: jsonData);
-      } catch (e) {
-        return ChatStreamEvent(type: 'text', text: '[解析动作失败]');
-      }
-    }
-
-    if (eventType == 'usage') {
-      return ChatStreamEvent(type: 'usage', text: data);
-    }
-
+    if (eventType == 'done') return ChatStreamEvent(type: 'done');
+    if (eventType == 'action_result') return ChatStreamEvent(type: 'action_result', data: json.decode(data));
     return ChatStreamEvent(type: eventType, text: data);
   }
 
   Future<Map<String, dynamic>> recognizeFood(List<int> imageBytes) async {
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/food-analysis/recognize'));
-      if (_token != null && _token!.isNotEmpty) {
-        request.headers['X-API-Key'] = _token!;
-      }
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        imageBytes,
-        filename: 'food.jpg',
-      ));
-
+      request.headers.addAll(_headers);
+      request.files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: 'food.jpg'));
       final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
       final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        return json.decode(utf8.decode(response.bodyBytes));
-      }
-      throw ApiException('识别失败 (${response.statusCode})');
+      if (response.statusCode == 200) return json.decode(utf8.decode(response.bodyBytes));
+      throw ApiException('识别失败');
     } catch (e) {
       throw _handleError(e);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // User
-  // ---------------------------------------------------------------------------
-
-  Future<UserProfile?> getUser() async {
-    try {
-      final response =
-          await http.get(Uri.parse('$baseUrl/user'), headers: _headers).timeout(_timeout);
-      if (response.statusCode == 200) {
-        return UserProfile.fromJson(
-            json.decode(utf8.decode(response.bodyBytes)));
-      }
-      return null; // 404 = 用户不存在
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  Future<UserProfile> createUser(UserProfile user) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/user'),
-            headers: _headers,
-            body: json.encode(user.toJson()),
-          )
-          .timeout(_timeout);
-      if (response.statusCode == 200) {
-        return UserProfile.fromJson(
-            json.decode(utf8.decode(response.bodyBytes)));
-      }
-      throw ApiException('创建用户信息失败 (${response.statusCode})');
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  Future<UserProfile> updateUser(UserProfile user) async {
-    try {
-      final response = await http
-          .patch(
-            Uri.parse('$baseUrl/user'),
-            headers: _headers,
-            body: json.encode(user.toJson()),
-          )
-          .timeout(_timeout);
-      if (response.statusCode == 200) {
-        return UserProfile.fromJson(
-            json.decode(utf8.decode(response.bodyBytes)));
-      }
-      throw ApiException('更新用户信息失败 (${response.statusCode})');
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  /// 统一错误处理
   Exception _handleError(dynamic e) {
     if (e is ApiException) return e;
-    if (e is TimeoutException) return const ApiException('请求超时，请检查网络连接');
-    if (e is http.ClientException) return const ApiException('网络连接失败');
+    if (e is TimeoutException) return const ApiException('请求超时');
     return ApiException('网络请求出错: $e');
   }
 }
 
-/// 统一的 API 异常类
 class ApiException implements Exception {
   final String message;
   const ApiException(this.message);
-
   @override
   String toString() => message;
 }
 
 class ChatStreamEvent {
-  final String type; // 'text', 'action_result', 'error', 'done'
+  final String type;
   final String? text;
   final Map<String, dynamic>? data;
-
   ChatStreamEvent({required this.type, this.text, this.data});
 }

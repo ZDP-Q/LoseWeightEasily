@@ -40,4 +40,12 @@ class SearchProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+
+  void reset() {
+    _results = [];
+    _isSearching = false;
+    _error = null;
+    _lastQuery = '';
+    notifyListeners();
+  }
 }

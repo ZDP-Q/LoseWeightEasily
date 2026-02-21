@@ -45,7 +45,7 @@ class MealPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearInputs() {
+  void reset() {
     _ingredients = [];
     _preferences = '';
     _restrictions = '';

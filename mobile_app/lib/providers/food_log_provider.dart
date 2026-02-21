@@ -15,6 +15,13 @@ class FoodLogProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  void reset() {
+    _todayLogs = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   double get totalCalories => _todayLogs.fold(0, (sum, item) => sum + item.calories);
 
   Future<void> loadTodayLogs() async {

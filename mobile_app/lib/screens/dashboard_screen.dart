@@ -25,8 +25,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NavigationProvider>().onHomeRefreshed = _refreshData;
+      _refreshData();
     });
-    _refreshData();
   }
 
   Future<void> _refreshData() async {
@@ -40,6 +40,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final secondaryColor = theme.textTheme.bodySmall?.color ?? AppColors.textSecondary;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -47,13 +50,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context),
+              _buildHeader(context, secondaryColor),
               const SizedBox(height: 16),
-              _buildSummaryCards(context),
+              _buildSummaryCards(context, secondaryColor),
               const SizedBox(height: 16),
               _buildWeightChart(context),
               const SizedBox(height: 16),
-              Expanded(child: _buildFoodLogTable(context)),
+              Expanded(child: _buildFoodLogTable(context, secondaryColor)),
             ],
           ),
         ),
@@ -61,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, Color secondaryColor) {
     final userProvider = context.watch<UserProvider>();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -73,8 +76,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               '你好, ${userProvider.displayName}',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const Text('今天也是元气满满的一天 🌟', 
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            Text('今天也是元气满满的一天 🌟', 
+                style: TextStyle(fontSize: 13, color: secondaryColor)),
           ],
         ),
         _buildHeaderAction(
@@ -172,22 +175,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
      );
   }
 
-  Widget _buildSummaryCards(BuildContext context) {
+  Widget _buildSummaryCards(BuildContext context, Color secondaryColor) {
     final weightProvider = context.watch<WeightProvider>();
     final userProvider = context.watch<UserProvider>();
     final currentWeight = weightProvider.latestWeight ?? (userProvider.user?.initialWeightKg ?? 0);
     
-    // 修复目标摄入计算：基于目标体重计算 TDEE
     double targetGoal = 0;
     final user = userProvider.user;
-    if (user != null) {
+    if (user != null && user.targetWeightKg != null && user.heightCm != null && user.age != null && user.gender != null) {
       final bmr = BmrCalculator.calculateBmr(
-        weight: user.targetWeightKg,
-        height: user.heightCm,
-        age: user.age,
-        gender: user.gender,
+        weight: user.targetWeightKg!,
+        height: user.heightCm!,
+        age: user.age!,
+        gender: user.gender!,
       );
-      targetGoal = BmrCalculator.calculateTdee(bmr, user.activityLevel);
+      targetGoal = BmrCalculator.calculateTdee(bmr, user.activityLevel ?? 'sedentary');
     }
 
     return Row(
@@ -199,6 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'kg',
             FontAwesomeIcons.weightScale,
             Colors.blue,
+            secondaryColor,
           ),
         ),
         const SizedBox(width: 12),
@@ -209,13 +212,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'kcal',
             FontAwesomeIcons.fire,
             Colors.orange,
+            secondaryColor,
           ),
         ),
       ],
     ).animate().fadeIn(delay: 200.ms).scale();
   }
 
-  Widget _buildInfoCard(String title, String value, String unit, IconData icon, Color color) {
+  Widget _buildInfoCard(String title, String value, String unit, IconData icon, Color color, Color secondaryColor) {
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -229,11 +233,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(width: 4),
-              Text(unit, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              Text(unit, style: TextStyle(fontSize: 11, color: secondaryColor)),
             ],
           ),
           const SizedBox(height: 2),
-          Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(title, style: TextStyle(fontSize: 11, color: secondaryColor)),
         ],
       ),
     );
@@ -450,7 +454,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildFoodLogTable(BuildContext context) {
+  Widget _buildFoodLogTable(BuildContext context, Color secondaryColor) {
     final foodLogProvider = context.watch<FoodLogProvider>();
     final logs = foodLogProvider.todayLogs;
     final total = foodLogProvider.totalCalories;
@@ -469,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Text('${total.toStringAsFixed(0)} kcal', 
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  const Text('总摄入量', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  Text('总摄入量', style: TextStyle(fontSize: 10, color: secondaryColor)),
                 ],
               ),
             ],
@@ -481,11 +485,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: logs.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
+                      children: [
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
+                          padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Center(
-                            child: Text('今日暂无饮食记录', style: TextStyle(color: AppColors.textSecondary)),
+                            child: Text('今日暂无饮食记录', style: TextStyle(color: secondaryColor)),
                           ),
                         ),
                       ],

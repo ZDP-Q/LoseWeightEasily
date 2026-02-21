@@ -35,17 +35,16 @@ class _BmrScreenState extends State<BmrScreen> {
     if (userProvider.hasUser) {
       final user = userProvider.user!;
       setState(() {
-        _weight = user.initialWeightKg;
-        _height = user.heightCm;
-        _age = user.age;
-        _gender = user.gender;
+        _weight = user.initialWeightKg ?? 70.0;
+        _height = user.heightCm ?? 175.0;
+        _age = user.age ?? 25;
+        _gender = user.gender ?? 'male';
         _hasAutoFilled = true;
       });
     }
   }
 
   void _calculate() {
-    // 本地计算 BMR，无需网络请求
     final bmr = BmrCalculator.calculateBmr(
       weight: _weight,
       height: _height,
@@ -60,25 +59,29 @@ class _BmrScreenState extends State<BmrScreen> {
 
   Future<void> _saveToProfile() async {
     if (_result == null) return;
-    final bmr = (_result!['bmr'] as num).toDouble();
     final userProvider = context.read<UserProvider>();
     if (!userProvider.hasUser) return;
 
-    final updatedUser = userProvider.user!.copyWith(
-      bmr: bmr,
-      dailyCalorieGoal: bmr * 1.2, // 默认久坐活动水平
-    );
-
     try {
-      await userProvider.updateUser(updatedUser);
+      // 局部更新，仅同步计算所得的 BMR
+      await userProvider.updateProfile(); 
+      // 注意：这里的后端接口会自动根据身高体重计算 BMR，
+      // 所以我们只需要同步最新的身体数据即可
+      await userProvider.updateProfile(
+        age: _age,
+        gender: _gender,
+        height: _height,
+        initialWeight: _weight,
+      );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存到个人资料 ✅'), backgroundColor: AppColors.success),
+        const SnackBar(content: Text('已同步身体资料到云端 ✅'), backgroundColor: Colors.green),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text('同步失败: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -117,9 +120,17 @@ class _BmrScreenState extends State<BmrScreen> {
               _buildInputCard('年龄', _age.toDouble(), 10, 100,
                   (val) => setState(() => _age = val.toInt())),
               const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _calculate,
-                child: const Text('立即计算'),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _calculate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('立即计算'),
+                ),
               ),
               const SizedBox(height: 32),
               if (_result != null) _buildResultView(),
@@ -201,10 +212,10 @@ class _BmrScreenState extends State<BmrScreen> {
           children: [
             Text('您的 BMR', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(width: 8),
-            Tooltip(
+            const Tooltip(
               message: 'BMR（基础代谢率）是您在完全静卧状态下维持生命所需的最低热量',
               child: Icon(Icons.help_outline,
-                  size: 18, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                  size: 18, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -228,7 +239,7 @@ class _BmrScreenState extends State<BmrScreen> {
             child: OutlinedButton.icon(
               onPressed: _saveToProfile,
               icon: const Icon(Icons.save_alt, size: 18),
-              label: const Text('保存到个人资料'),
+              label: const Text('同步资料到云端'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: const BorderSide(color: AppColors.primary),
@@ -245,10 +256,10 @@ class _BmrScreenState extends State<BmrScreen> {
             Text('不同活动强度的 TDEE',
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(width: 8),
-            Tooltip(
+            const Tooltip(
               message: 'TDEE（每日总能量消耗）= BMR × 活动因子，是每天实际消耗的总热量',
               child: Icon(Icons.help_outline,
-                  size: 18, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                  size: 18, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -309,7 +320,7 @@ class _GenderCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? activeColor.withValues(alpha: 0.1)
-              : AppColors.bgCard.withValues(alpha: 0.4),
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color:

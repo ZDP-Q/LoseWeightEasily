@@ -15,7 +15,7 @@ def setup_logging() -> None:
     settings = get_settings().logging
 
     level = getattr(logging, settings.level.upper(), logging.DEBUG)
-    
+
     # 定义日志格式
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -35,9 +35,7 @@ def setup_logging() -> None:
     if settings.enable_file:
         log_dir = Path(settings.dir)
         log_dir.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(
-            log_dir / "app.log", encoding="utf-8"
-        )
+        file_handler = logging.FileHandler(log_dir / "app.log", encoding="utf-8")
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         handlers.append(file_handler)
@@ -45,11 +43,11 @@ def setup_logging() -> None:
     # 配置根日志器
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
-    
+
     # 清理现有的 handler 避免重复
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        
+
     for handler in handlers:
         root_logger.addHandler(handler)
 
@@ -60,4 +58,6 @@ def setup_logging() -> None:
         u_logger.handlers = []  # 清空 uvicorn 默认的 handlers
         u_logger.propagate = True  # 让日志流向根日志器
 
-    logging.getLogger("loseweight").info("日志系统初始化完成 (level=%s, file=%s)", settings.level, settings.enable_file)
+    logging.getLogger("loseweight").info(
+        "日志系统初始化完成 (level=%s, file=%s)", settings.level, settings.enable_file
+    )

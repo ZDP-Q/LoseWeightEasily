@@ -17,6 +17,7 @@ engine = create_engine(settings.database.url, **engine_kwargs)
 
 
 if is_sqlite:
+
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragma(dbapi_connection, _):
         cursor = dbapi_connection.cursor()

@@ -17,4 +17,9 @@ class NavigationProvider extends ChangeNotifier {
       }
     }
   }
+
+  void reset() {
+    _selectedIndex = 0;
+    notifyListeners();
+  }
 }

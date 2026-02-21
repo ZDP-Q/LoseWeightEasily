@@ -30,7 +30,7 @@ def create_food_log(
         user_id=user_id,
         food_name=data.food_name,
         calories=data.calories,
-        timestamp=data.timestamp or datetime.now(timezone.utc)
+        timestamp=data.timestamp or datetime.now(timezone.utc),
     )
     session.add(log)
     session.commit()
@@ -48,13 +48,17 @@ def get_today_logs(
     # 简单的本地时间起始计算
     start_of_day = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
     end_of_day = start_of_day + timedelta(days=1)
-    
-    statement = select(FoodLog).where(
-        and_(
-            FoodLog.user_id == user_id,
-            FoodLog.timestamp >= start_of_day,
-            FoodLog.timestamp < end_of_day
+
+    statement = (
+        select(FoodLog)
+        .where(
+            and_(
+                FoodLog.user_id == user_id,
+                FoodLog.timestamp >= start_of_day,
+                FoodLog.timestamp < end_of_day,
+            )
         )
-    ).order_by(FoodLog.timestamp.asc())
-    
+        .order_by(FoodLog.timestamp.asc())
+    )
+
     return session.exec(statement).all()

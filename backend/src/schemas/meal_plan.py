@@ -6,7 +6,9 @@ class MealPlanRequest(BaseModel):
     ingredients: List[str] = Field(min_length=1, max_length=20)
     preferences: Optional[str] = Field(default="", max_length=500)
     dietary_restrictions: Optional[str] = Field(default="", max_length=500)
-    goal: Optional[str] = Field(default="lose_weight", description="lose_weight or maintain")
+    goal: Optional[str] = Field(
+        default="lose_weight", description="lose_weight or maintain"
+    )
     target_calories: Optional[int] = None
 
 
@@ -39,4 +41,3 @@ class MealPlanError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
-

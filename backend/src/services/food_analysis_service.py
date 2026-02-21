@@ -49,19 +49,19 @@ class FoodAnalysisService:
         try:
             # 上传到 MinIO (带重试逻辑的上传由客户端实现或这里处理)
             object_name = self.minio.upload_image(image_data)
-            
+
             # 记录到数据库
             with Session(engine) as session:
                 user = session.exec(select(User)).first()
                 user_id = user.id if user else None
-                
+
                 recognition_record = FoodRecognition(
                     user_id=user_id,
                     image_path=object_name,
                     food_name=response.final_food_name,
                     calories=float(response.final_estimated_calories),
                     verification_status="AI_RECOGNIZED",
-                    reason=f"三路并发聚合结果 ({len(response.raw_data)} 路)"
+                    reason=f"三路并发聚合结果 ({len(response.raw_data)} 路)",
                 )
                 session.add(recognition_record)
                 session.commit()
@@ -97,10 +97,18 @@ class FoodAnalysisService:
                 final_estimated_calories=result.get("final_estimated_calories", 0),
                 raw_data=[
                     FoodAnalysisResult(
-                        food_name=r.get("food_name", "未知") if isinstance(r, dict) else getattr(r, "food_name", "未知"),
-                        calories=r.get("calories", 0) if isinstance(r, dict) else getattr(r, "calories", 0),
-                        confidence=r.get("confidence", 0.0) if isinstance(r, dict) else getattr(r, "confidence", 0.0),
-                        components=r.get("components", []) if isinstance(r, dict) else getattr(r, "components", []),
+                        food_name=r.get("food_name", "未知")
+                        if isinstance(r, dict)
+                        else getattr(r, "food_name", "未知"),
+                        calories=r.get("calories", 0)
+                        if isinstance(r, dict)
+                        else getattr(r, "calories", 0),
+                        confidence=r.get("confidence", 0.0)
+                        if isinstance(r, dict)
+                        else getattr(r, "confidence", 0.0),
+                        components=r.get("components", [])
+                        if isinstance(r, dict)
+                        else getattr(r, "components", []),
                     )
                     for r in result.get("raw_data", [])
                 ],
@@ -131,10 +139,18 @@ class FoodAnalysisService:
                 final_estimated_calories=result.get("final_estimated_calories", 0),
                 raw_data=[
                     FoodAnalysisResult(
-                        food_name=r.get("food_name", "未知") if isinstance(r, dict) else getattr(r, "food_name", "未知"),
-                        calories=r.get("calories", 0) if isinstance(r, dict) else getattr(r, "calories", 0),
-                        confidence=r.get("confidence", 0.0) if isinstance(r, dict) else getattr(r, "confidence", 0.0),
-                        components=r.get("components", []) if isinstance(r, dict) else getattr(r, "components", []),
+                        food_name=r.get("food_name", "未知")
+                        if isinstance(r, dict)
+                        else getattr(r, "food_name", "未知"),
+                        calories=r.get("calories", 0)
+                        if isinstance(r, dict)
+                        else getattr(r, "calories", 0),
+                        confidence=r.get("confidence", 0.0)
+                        if isinstance(r, dict)
+                        else getattr(r, "confidence", 0.0),
+                        components=r.get("components", [])
+                        if isinstance(r, dict)
+                        else getattr(r, "components", []),
                     )
                     for r in result.get("raw_data", [])
                 ],

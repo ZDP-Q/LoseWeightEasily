@@ -4,7 +4,11 @@ from pathlib import Path
 from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    PydanticBaseSettingsSource,
+)
 
 
 class DatabaseSettings(BaseModel):
@@ -94,9 +98,7 @@ class YamlConfigSettingsSource(PydanticBaseSettingsSource):
     at the root of the project.
     """
 
-    def get_field_value(
-        self, field_name: str, field: Any
-    ) -> tuple[Any, str, bool]:
+    def get_field_value(self, field_name: str, field: Any) -> tuple[Any, str, bool]:
         # Nothing to do here for this simple source
         return None, field_name, False
 

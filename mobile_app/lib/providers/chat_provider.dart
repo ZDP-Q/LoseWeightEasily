@@ -120,6 +120,14 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reset() {
+    _messages = [];
+    _isLoading = false;
+    _isIngredientMode = false;
+    _selectedIngredients.clear();
+    notifyListeners();
+  }
+
   // --- Messaging ---
   void addUserMessage(String text) {
     _messages.add(ChatMessage(
@@ -209,6 +217,10 @@ class ChatProvider extends ChangeNotifier {
         if (event.type == 'text') {
           pendingChunk.write(event.text ?? '');
           flushPending();
+        } else if (event.type == 'thought') {
+          // 显式忽略思考内容（event: thought），不再追加到消息文本中
+          // 如果未来需要显示“思考中...”状态，可以在此处处理
+          continue; 
         } else if (event.type == 'action_result') {
           flushPending(force: true);
           _eventController.add(ChatEvent(type: 'action_result', data: event.data));

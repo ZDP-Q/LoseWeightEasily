@@ -14,6 +14,7 @@ def get_food_service(request: Request) -> FoodService:
     food_search = request.app.state.food_search
     if food_search is None:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=503, detail="食物检索服务未初始化")
     return FoodService(food_search=food_search)
 

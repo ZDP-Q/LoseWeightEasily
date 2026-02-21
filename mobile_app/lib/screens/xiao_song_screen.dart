@@ -30,7 +30,6 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
   @override
   void initState() {
     super.initState();
-    _initMarkdownStyles();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatProvider = context.read<ChatProvider>();
       
@@ -52,84 +51,6 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
         _scrollToBottom(isInitial: true);
       }
     });
-  }
-
-  void _initMarkdownStyles() {
-    _userMarkdownStyle = MarkdownStyleSheet(
-      p: const TextStyle(
-        color: Colors.white,
-        fontSize: 15.5,
-        height: 1.6,
-      ),
-      strong: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
-      ),
-      h1: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
-      h2: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-      h3: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-      listBullet: const TextStyle(color: Colors.white, fontSize: 15),
-      listIndent: 22,
-      blockquoteDecoration: const BoxDecoration(
-        color: Colors.white12,
-        border: Border(left: BorderSide(color: Colors.white38, width: 4)),
-      ),
-      code: TextStyle(
-        backgroundColor: Colors.black.withValues(alpha: 0.12),
-        color: Colors.white,
-        fontFamily: 'monospace',
-        fontSize: 13.5,
-      ),
-      codeblockDecoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.26),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      tableBorder: TableBorder.all(
-        color: Colors.white.withValues(alpha: 0.3),
-        width: 1,
-      ),
-      tableBody: const TextStyle(color: Colors.white, fontSize: 13),
-      tableHead: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    );
-
-    _assistantMarkdownStyle = MarkdownStyleSheet(
-      p: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 15.5,
-        height: 1.6,
-      ),
-      strong: const TextStyle(
-        color: AppColors.primary,
-        fontWeight: FontWeight.bold,
-      ),
-      h1: const TextStyle(color: AppColors.primary, fontSize: 19, fontWeight: FontWeight.bold),
-      h2: const TextStyle(color: AppColors.primary, fontSize: 17, fontWeight: FontWeight.bold),
-      h3: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
-      listBullet: const TextStyle(color: AppColors.primary, fontSize: 15),
-      listIndent: 22,
-      blockquoteDecoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        border: const Border(left: BorderSide(color: AppColors.primary, width: 4)),
-      ),
-      code: TextStyle(
-        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
-        color: AppColors.primary,
-        fontFamily: 'monospace',
-        fontSize: 13.5,
-      ),
-      codeblockDecoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      tableBorder: TableBorder.all(
-        color: AppColors.border.withValues(alpha: 0.3),
-        width: 1,
-      ),
-      tableBody: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-      tableHead: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    );
   }
 
   @override
@@ -281,6 +202,68 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textPrimary = theme.textTheme.bodyMedium?.color ?? (isDark ? Colors.white : Colors.black87);
+    
+    // User bubble style (fixed since it always has primary background)
+    _userMarkdownStyle = MarkdownStyleSheet(
+      p: const TextStyle(color: Colors.white, fontSize: 15.5, height: 1.6),
+      strong: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      h1: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
+      h2: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+      h3: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+      listBullet: const TextStyle(color: Colors.white, fontSize: 15),
+      listIndent: 22,
+      blockquoteDecoration: const BoxDecoration(
+        color: Colors.white12,
+        border: Border(left: BorderSide(color: Colors.white38, width: 4)),
+      ),
+      code: TextStyle(
+        backgroundColor: Colors.black.withValues(alpha: 0.12),
+        color: Colors.white,
+        fontFamily: 'monospace',
+        fontSize: 13.5,
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.26),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tableBorder: TableBorder.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+      tableBody: const TextStyle(color: Colors.white, fontSize: 13),
+      tableHead: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    );
+
+    // Assistant bubble style (dynamic based on theme)
+    _assistantMarkdownStyle = MarkdownStyleSheet(
+      p: TextStyle(color: textPrimary, fontSize: 15.5, height: 1.6),
+      strong: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+      h1: const TextStyle(color: AppColors.primary, fontSize: 19, fontWeight: FontWeight.bold),
+      h2: const TextStyle(color: AppColors.primary, fontSize: 17, fontWeight: FontWeight.bold),
+      h3: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
+      listBullet: const TextStyle(color: AppColors.primary, fontSize: 15),
+      listIndent: 22,
+      blockquoteDecoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        border: const Border(left: BorderSide(color: AppColors.primary, width: 4)),
+      ),
+      code: TextStyle(
+        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+        color: AppColors.primary,
+        fontFamily: 'monospace',
+        fontSize: 13.5,
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tableBorder: TableBorder.all(color: AppColors.border.withValues(alpha: 0.3), width: 1),
+      tableBody: TextStyle(color: textPrimary, fontSize: 13),
+      tableHead: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -494,10 +477,52 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
     );
   }
 
+  String _formatText(String text) {
+    // 1. 过滤掉 <think>...</think> 标签及其内容（忽略大小写，处理未闭合情况）
+    final thinkRegExp = RegExp(r'<think>[\s\S]*?(?:</think>|$)', caseSensitive: false, multiLine: true);
+    String filtered = text.replaceAll(thinkRegExp, '');
+    
+    // 2. 额外清理可能残余的孤立 </think> 标签（防御性）
+    filtered = filtered.replaceAll(RegExp(r'</think>', caseSensitive: false), '');
+    
+    // 3. 修复 Markdown 列表：确保符号后有空格，并统一符号
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'^(\s*[-*+·])([^\s\-\*\+\s])', multiLine: true),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+    
+    // 4. 将中英文圆点统一替换为标准列表符 -
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'^(\s*)·\s+', multiLine: true),
+      (match) => '${match.group(1)}- ',
+    );
+
+    // 5. 确保列表项与其上方的非列表行之间有空行（如果缺失）
+    final lines = filtered.split('\n');
+    final fixedLines = <String>[];
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final isList = RegExp(r'^\s*[-*+]\s+').hasMatch(line);
+      if (isList && i > 0) {
+        final prevLine = lines[i - 1];
+        final prevIsList = RegExp(r'^\s*[-*+]\s+').hasMatch(prevLine);
+        final prevIsEmpty = prevLine.trim().isEmpty;
+        if (!prevIsList && !prevIsEmpty) {
+          fixedLines.add(''); // 插入空行
+        }
+      }
+      fixedLines.add(line);
+    }
+    filtered = fixedLines.join('\n');
+    
+    return filtered.trim().replaceAll('\r\n', '\n');
+  }
+
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;
     final markdownStyle = isUser ? _userMarkdownStyle : _assistantMarkdownStyle;
-    
+    final formattedText = isUser ? msg.text : _formatText(msg.text);
+
     return RepaintBoundary(
       child: Align(
       key: ValueKey('msg_${msg.id}'),
@@ -529,14 +554,14 @@ class _XiaoSongScreenState extends State<XiaoSongScreen> {
               child: (!isUser && msg.isStreaming)
                   ? StreamingMarkdownWidget(
                       key: ValueKey('md_${msg.id}'),
-                      text: msg.text,
+                      text: msg.text, // StreamingMarkdownWidget 内部已处理过滤
                       isStreaming: true,
                       selectable: true,
                       styleSheet: markdownStyle,
                     )
                   : MarkdownBody(
                       key: ValueKey('md_static_${msg.id}'),
-                      data: msg.text,
+                      data: formattedText,
                       selectable: true,
                       styleSheet: markdownStyle,
                       fitContent: true,

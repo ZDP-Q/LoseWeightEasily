@@ -88,34 +88,123 @@ class _StreamingMarkdownWidgetState extends State<StreamingMarkdownWidget>
     if (_throttleTimer?.isActive ?? false) return;
     _throttleTimer = Timer(_throttleInterval, () {
       if (!mounted) return;
-      final raw = _normalize(_pendingText);
-      final repaired = widget.isStreaming ? _repairStreamingMarkdown(raw) : raw;
       setState(() {
-        _displayText = repaired;
+        _displayText = _normalize(_pendingText);
       });
     });
   }
 
   String _normalize(String text) {
-    return text.replaceAll('\r\n', '\n');
+    // 1. 过滤掉 <think>...</think> 标签及其内容
+    final thinkRegExp = RegExp(r'<think>[\s\S]*?(?:</think>|$)', caseSensitive: false, multiLine: true);
+    String filtered = text.replaceAll(thinkRegExp, '');
+    filtered = filtered.replaceAll(RegExp(r'</think>', caseSensitive: false), '');
+    
+    // 2. 修复 Markdown 标题：确保 # 后有空格 (全局检测，不依赖行首)
+    // 匹配井号序列后紧跟非空格、非换行、非井号字符的情况，插入空格
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'(#+)([^\s#\n])'),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+    
+    // 3. 修复标题上方的空行 (极致修复版)
+    // 匹配任何非换行符紧跟标题，或者单个换行符紧跟标题的情况
+    // 这涵盖了 "文本###" 以及 "文本\n###"
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'([^\n])\n?((?: {0,3})#+ +)'),
+      (match) => '${match.group(1)}\n\n${match.group(2)}',
+    );
+
+    // 4. 修复 Markdown 列表符号后的空格
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'^(\s*[-*+·])([^\s\-\*\+\s\n])', multiLine: true),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+    
+    // 5. 统一列表符号并补齐上方空行
+    filtered = filtered.replaceAllMapped(
+      RegExp(r'([^\n])\n?(\s*[-*+]\s+)', multiLine: true),
+      (match) {
+        final content = match.group(1)!;
+        final listStart = match.group(2)!;
+        // 如果上一行不是列表项且不是空行，补两个换行
+        if (!RegExp(r'^\s*[-*+]\s+').hasMatch(content)) {
+          return '$content\n\n$listStart';
+        }
+        return '$content\n$listStart';
+      },
+    );
+    
+    return filtered.replaceAll('\r\n', '\n');
   }
 
   String _repairStreamingMarkdown(String markdown) {
+    if (markdown.isEmpty) return markdown;
     var text = markdown;
 
-    final fenceRe = RegExp(r'(^|\n)(`{3,}|~{3,})[^\n]*', multiLine: true);
-    final matches = fenceRe.allMatches(text).toList();
-    if (matches.length.isOdd && matches.isNotEmpty) {
-      final raw = matches.last.group(2) ?? '```';
-      final closeFence = raw.startsWith('~') ? '~~~' : '```';
-      text = '$text\n$closeFence';
+    // 针对流式标题的特殊补全：如果最后一行以 # 结尾但没有内容，补全一个空格以触发标题渲染
+    if (RegExp(r'\n(?: {0,3})#+$').hasMatch(text) || text.startsWith('#')) {
+       if (text.endsWith('#')) {
+         text = '$text ';
+       }
     }
 
+    // 2. 修复行内代码 (Inline Code)
     final backtickCount = '`'.allMatches(text).length;
-    if (backtickCount.isOdd) {
+    if (backtickCount.isOdd && !text.endsWith('```')) {
       text = '$text`';
     }
 
+    // 3. 修复链接和图片 [text](url
+    // 先找最后一个 '['
+    int lastBracket = text.lastIndexOf('[');
+    int lastCloseBracket = text.lastIndexOf(']');
+    if (lastBracket > lastCloseBracket) {
+      // 正在写 [text
+      text = '$text]';
+    }
+
+    // 再处理链接部分 (url
+    int lastParen = text.lastIndexOf('(');
+    int lastCloseParen = text.lastIndexOf(')');
+    if (lastParen > lastCloseParen) {
+      // 检查 '(' 前面是不是刚闭合的 ']'
+      String beforeParen = text.substring(0, lastParen).trimRight();
+      if (beforeParen.endsWith(']')) {
+         text = '$text)';
+      }
+    }
+
+    // 4. 修复加粗和斜体 (Bold & Italic)
+    // 简单的计数补全，处理 ** 和 __
+    text = _closeTag(text, '**');
+    text = _closeTag(text, '__');
+    
+    // 处理单星号 * (稍微复杂点，因为它可能是列表)
+    // 如果 * 后面紧跟空格，通常是列表，不需要补全
+    final starCount = '*'.allMatches(text).length;
+    if (starCount.isOdd) {
+      int lastStar = text.lastIndexOf('*');
+      // 如果不是行首的列表符，则尝试闭合
+      bool isList = lastStar == 0 || text[lastStar - 1] == '\n';
+      if (!isList) {
+        text = '$text*';
+      }
+    }
+
+    return text;
+  }
+
+  String _closeTag(String text, String tag) {
+    int count = 0;
+    int pos = text.indexOf(tag);
+    while (pos != -1) {
+      count++;
+      pos = text.indexOf(tag, pos + tag.length);
+    }
+    if (count.isOdd) {
+      return '$text$tag';
+    }
     return text;
   }
 

@@ -16,6 +16,13 @@ class WeightProvider extends ChangeNotifier {
   String? get error => _error;
   bool get hasRecords => _records.isNotEmpty;
 
+  void reset() {
+    _records = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   WeightRecord? get latestRecord => _records.isNotEmpty ? _records.first : null;
   double? get latestWeight => latestRecord?.weightKg;
 

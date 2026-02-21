@@ -9,10 +9,11 @@ from models import Food, Nutrient, FoodNutrient, FoodPortion
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def import_data():
     settings = get_settings()
     engine = create_engine(str(settings.database.url))
-    
+
     json_path = Path("data/FoodData_Central_foundation_food_json_2025-12-18.json")
     if not json_path.exists():
         logger.error(f"File not found: {json_path}")
@@ -28,14 +29,14 @@ def import_data():
     with Session(engine) as session:
         for i, food_data in enumerate(foundation_foods):
             fdc_id = food_data.get("fdcId")
-            
+
             # 1. Create or update Food
             food = session.get(Food, fdc_id)
             if not food:
                 food_category = food_data.get("foodCategory")
                 if isinstance(food_category, dict):
                     food_category = food_category.get("description")
-                
+
                 food = Food(
                     fdc_id=fdc_id,
                     food_class=food_data.get("foodClass"),
@@ -46,15 +47,15 @@ def import_data():
                     food_category=food_category,
                 )
                 session.add(food)
-            
+
             # 2. Process Nutrients
             for fn_data in food_data.get("foodNutrients", []):
                 n_data = fn_data.get("nutrient", {})
                 nutrient_id = n_data.get("id")
-                
+
                 if not nutrient_id:
                     continue
-                
+
                 nutrient = session.get(Nutrient, nutrient_id)
                 if not nutrient:
                     nutrient = Nutrient(
@@ -65,13 +66,13 @@ def import_data():
                         rank=n_data.get("rank"),
                     )
                     session.add(nutrient)
-                    session.flush() # Ensure nutrient is available for FoodNutrient
-                
+                    session.flush()  # Ensure nutrient is available for FoodNutrient
+
                 # Link Food and Nutrient
                 # Check if link already exists
                 statement = select(FoodNutrient).where(
-                    FoodNutrient.fdc_id == fdc_id, 
-                    FoodNutrient.nutrient_id == nutrient_id
+                    FoodNutrient.fdc_id == fdc_id,
+                    FoodNutrient.nutrient_id == nutrient_id,
                 )
                 fn_link = session.exec(statement).first()
                 if not fn_link:
@@ -110,6 +111,7 @@ def import_data():
 
         session.commit()
         logger.info("Import completed successfully.")
+
 
 if __name__ == "__main__":
     import_data()

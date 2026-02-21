@@ -25,10 +25,10 @@ logger = logging.getLogger("import_usda")
 
 # 营养素编号映射
 NUTRIENT_MAP = {
-    "208": "calories",   # Energy (kcal)
-    "203": "protein",    # Protein (g)
-    "204": "fat",        # Total lipid (fat) (g)
-    "205": "carbs",      # Carbohydrate, by difference (g)
+    "208": "calories",  # Energy (kcal)
+    "203": "protein",  # Protein (g)
+    "204": "fat",  # Total lipid (fat) (g)
+    "205": "carbs",  # Carbohydrate, by difference (g)
 }
 
 
@@ -72,15 +72,17 @@ def parse_usda_json(json_path: str) -> list[dict]:
         if not description:
             continue
 
-        parsed.append({
-            "fdc_id": fdc_id,
-            "description": description,
-            "food_category": food_category,
-            "calories_per_100g": nutrients["calories"],
-            "protein_per_100g": nutrients["protein"],
-            "fat_per_100g": nutrients["fat"],
-            "carbs_per_100g": nutrients["carbs"],
-        })
+        parsed.append(
+            {
+                "fdc_id": fdc_id,
+                "description": description,
+                "food_category": food_category,
+                "calories_per_100g": nutrients["calories"],
+                "protein_per_100g": nutrients["protein"],
+                "fat_per_100g": nutrients["fat"],
+                "carbs_per_100g": nutrients["carbs"],
+            }
+        )
 
     return parsed
 
@@ -144,8 +146,10 @@ def main():
         count = milvus_manager.insert_batch(insert_data)
         total_inserted += count
         logger.info(
-            "进度: %d/%d (已插入 %d)", 
-            min(i + batch_size, len(foods)), len(foods), total_inserted,
+            "进度: %d/%d (已插入 %d)",
+            min(i + batch_size, len(foods)),
+            len(foods),
+            total_inserted,
         )
 
         # 控制 API 调用频率

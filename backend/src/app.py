@@ -1,14 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from sqlmodel import Session
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import food, meal_plan, user, weight, food_analysis, chat, food_log
 from .core.config import get_settings
 from .core.logging import setup_logging
-from .core.security import verify_api_key
+# from .core.security import verify_api_key
 
 settings = get_settings()
 # 立即初始化日志配置
@@ -90,7 +90,6 @@ app = FastAPI(
     description="重构后的减肥助手后端接口",
     version="3.0.0",
     lifespan=lifespan,
-    dependencies=[Depends(verify_api_key)],
 )
 
 # CORS 中间件配置（从配置文件读取允许的源）

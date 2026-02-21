@@ -1,6 +1,5 @@
 """食物搜索服务，基于 Milvus 向量数据库。"""
 
-
 from LoseWeightAgent.src.services.food_search import FoodSearchService
 from LoseWeightAgent.src.schemas import FoodNutritionSearchResult
 

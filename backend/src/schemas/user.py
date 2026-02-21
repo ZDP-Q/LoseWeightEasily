@@ -1,29 +1,33 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
 from typing import Optional
 
 
 class UserCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=50)
-    age: int = Field(ge=1, le=150)
-    gender: str = Field(pattern=r"^(male|female)$")
-    height_cm: float = Field(ge=50, le=300)
-    initial_weight_kg: float = Field(ge=10, le=500)
-    target_weight_kg: float = Field(ge=10, le=500)
-    activity_level: Optional[str] = Field(default="sedentary")
-    bmr: Optional[float] = None
-    tdee: Optional[float] = None
-    daily_calorie_goal: Optional[float] = Field(default=None, ge=500, le=10000)
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=6)
+    email: Optional[EmailStr] = None
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 
 class UserRead(BaseModel):
     id: int
-    name: str
-    age: int
-    gender: str
-    height_cm: float
-    initial_weight_kg: float
-    target_weight_kg: float
+    username: str
+    email: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    height_cm: Optional[float] = None
+    initial_weight_kg: Optional[float] = None
+    target_weight_kg: Optional[float] = None
     activity_level: Optional[str] = "sedentary"
     bmr: Optional[float] = None
     tdee: Optional[float] = None
@@ -34,14 +38,10 @@ class UserRead(BaseModel):
         from_attributes = True
 
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    age: Optional[int] = Field(default=None, ge=1, le=150)
-    gender: Optional[str] = Field(default=None, pattern=r"^(male|female)$")
-    height_cm: Optional[float] = Field(default=None, ge=50, le=300)
-    initial_weight_kg: Optional[float] = Field(default=None, ge=10, le=500)
-    target_weight_kg: Optional[float] = Field(default=None, ge=10, le=500)
-    activity_level: Optional[str] = Field(default=None)
-    bmr: Optional[float] = None
-    tdee: Optional[float] = None
-    daily_calorie_goal: Optional[float] = Field(default=None, ge=500, le=10000)
+class UserProfileUpdate(BaseModel):
+    age: int = Field(ge=1, le=150)
+    gender: str = Field(pattern=r"^(male|female|other)$")
+    height_cm: float = Field(ge=50, le=300)
+    initial_weight_kg: float = Field(ge=10, le=500)
+    target_weight_kg: float = Field(ge=10, le=500)
+    activity_level: Optional[str] = Field(default="sedentary")

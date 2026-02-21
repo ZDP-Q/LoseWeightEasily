@@ -1,12 +1,14 @@
 class UserProfile {
   final int? id;
-  final String name;
-  final int age;
-  final String gender; // "male" or "female"
-  final double heightCm;
-  final double initialWeightKg;
-  final double targetWeightKg;
-  final String activityLevel;
+  final String username;
+  final String? email;
+  final String? fullName;
+  final int? age;
+  final String? gender; 
+  final double? heightCm;
+  final double? initialWeightKg;
+  final double? targetWeightKg;
+  final String? activityLevel;
   final double? bmr;
   final double? tdee;
   final double? dailyCalorieGoal;
@@ -14,12 +16,14 @@ class UserProfile {
 
   UserProfile({
     this.id,
-    required this.name,
-    required this.age,
-    required this.gender,
-    required this.heightCm,
-    required this.initialWeightKg,
-    required this.targetWeightKg,
+    required this.username,
+    this.email,
+    this.fullName,
+    this.age,
+    this.gender,
+    this.heightCm,
+    this.initialWeightKg,
+    this.targetWeightKg,
     this.activityLevel = 'sedentary',
     this.bmr,
     this.tdee,
@@ -30,12 +34,14 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id'],
-      name: json['name'] ?? '',
-      age: json['age'] ?? 0,
-      gender: (json['gender'] as String? ?? 'male').toLowerCase(),
-      heightCm: (json['height_cm'] as num? ?? 0).toDouble(),
-      initialWeightKg: (json['initial_weight_kg'] as num? ?? 0).toDouble(),
-      targetWeightKg: (json['target_weight_kg'] as num? ?? 0).toDouble(),
+      username: json['username'] ?? '',
+      email: json['email'],
+      fullName: json['full_name'],
+      age: json['age'],
+      gender: json['gender'],
+      heightCm: (json['height_cm'] as num?)?.toDouble(),
+      initialWeightKg: (json['initial_weight_kg'] as num?)?.toDouble(),
+      targetWeightKg: (json['target_weight_kg'] as num?)?.toDouble(),
       activityLevel: json['activity_level'] as String? ?? 'sedentary',
       bmr: (json['bmr'] as num?)?.toDouble(),
       tdee: (json['tdee'] as num?)?.toDouble(),
@@ -48,7 +54,9 @@ class UserProfile {
 
   Map<String, dynamic> toJson() {
     return {
-      'name': name,
+      'username': username,
+      'email': email,
+      'full_name': fullName,
       'age': age,
       'gender': gender,
       'height_cm': heightCm,
@@ -63,7 +71,9 @@ class UserProfile {
 
   UserProfile copyWith({
     int? id,
-    String? name,
+    String? username,
+    String? email,
+    String? fullName,
     int? age,
     String? gender,
     double? heightCm,
@@ -77,7 +87,9 @@ class UserProfile {
   }) {
     return UserProfile(
       id: id ?? this.id,
-      name: name ?? this.name,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
       age: age ?? this.age,
       gender: gender ?? this.gender,
       heightCm: heightCm ?? this.heightCm,

@@ -1,83 +1,75 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../models/user.dart';
 
-/// 认证状态提供者
-/// 
-/// 管理用户的 API Key 持久化存储，并控制登录状态
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService;
-  static const String _tokenKey = 'auth_token';
   
-  String? _token;
   bool _isLoading = true;
+  bool _isAuthenticated = false;
+  bool _needsOnboarding = false;
+  UserProfile? _user;
 
   AuthProvider(this._apiService) {
-    _loadToken();
+    _initialize();
   }
 
-  String? get token => _token;
   bool get isLoading => _isLoading;
-  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
+  bool get isAuthenticated => _isAuthenticated;
+  bool get needsOnboarding => _needsOnboarding;
+  UserProfile? get user => _user;
 
-  /// 从本地存储加载 Token
-  Future<void> _loadToken() async {
+  Future<void> _initialize() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString(_tokenKey);
-      if (_token != null) {
-        _apiService.setToken(_token);
+      // ApiService 已经在 main() 中初始化过，这里只需检查状态
+      if (_apiService.isAuthenticated) {
+        await checkAuth();
       }
     } catch (e) {
-      debugPrint('加载 Token 失败: $e');
+      debugPrint('Auth initialization error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// 登录/更新 Token
-  Future<bool> login(String token) async {
-    if (token.isEmpty) return false;
-
+  Future<void> checkAuth() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, token);
-      
-      _token = token;
-      _apiService.setToken(token);
-      
-      // 验证 Token 是否有效 (尝试获取用户信息)
-      final user = await _apiService.getUser();
-      if (user == null) {
-        // 如果用户不存在，跳转到创建流程（此逻辑由 UI 处理）
-        notifyListeners();
-        return true;
-      }
-      
-      notifyListeners();
-      return true;
+      _user = await _apiService.getMe();
+      _isAuthenticated = true;
+      // 如果身高为空，说明资料未初始化，需要引导
+      _needsOnboarding = (_user?.heightCm == null || _user?.heightCm == 0);
     } catch (e) {
-      debugPrint('登录验证失败: $e');
-      // 如果报错是因为 401/403，则认为登录失败
-      return false;
+      // 只有在明确是 401 未授权时才重置状态
+      debugPrint('Check auth error: $e');
+      if (e.toString().contains('401') || e.toString().contains('获取用户信息失败')) {
+        _isAuthenticated = false;
+        _user = null;
+        await _apiService.logout();
+      }
+      // 其他错误（如网络超时）暂不登出用户，保持当前状态
     }
+    notifyListeners();
   }
 
-  /// 退出登录
+  Future<void> login(String username, String password) async {
+    await _apiService.login(username, password);
+    await checkAuth();
+  }
+
+  Future<void> register(String username, String password) async {
+    await _apiService.register(username, password);
+    // 注册后通常需要自动登录，或者让用户手动登录
+    // 这里我们保持 register 逻辑纯粹，具体的自动登录由 Screen 层调用 login 处理
+  }
+
   Future<void> logout() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_tokenKey);
-      
-      _token = null;
-      _apiService.setToken(null);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('退出登录失败: $e');
-    }
+    await _apiService.logout();
+    _isAuthenticated = false;
+    _user = null;
+    notifyListeners();
   }
 }
